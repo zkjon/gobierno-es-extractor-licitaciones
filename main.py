@@ -44,6 +44,32 @@ def print_info(message: str):
     print(f"ℹ️  {message}")
 
 
+def format_elapsed_time(seconds: float) -> str:
+    """
+    Formatea el tiempo transcurrido en horas, minutos y segundos.
+    
+    Args:
+        seconds: Tiempo en segundos (puede ser float)
+    
+    Returns:
+        String formateado como "Xh Xm Xs" o "Xm Xs" o "Xs"
+    """
+    total_seconds = int(seconds)
+    hours = total_seconds // 3600
+    minutes = (total_seconds % 3600) // 60
+    secs = total_seconds % 60
+    
+    parts = []
+    if hours > 0:
+        parts.append(f"{hours}h")
+    if minutes > 0:
+        parts.append(f"{minutes}m")
+    if secs > 0 or not parts:
+        parts.append(f"{secs}s")
+    
+    return " ".join(parts)
+
+
 def print_progress(current: int, total: int, item: str = ""):
     """Imprime el progreso de una operación."""
     percentage = int((current / total) * 100) if total > 0 else 0
@@ -946,8 +972,11 @@ def process_region(navigator: ContratacionNavigator, url: str, region_nombre: st
 def main():
     """Función principal para ejecutar la navegación paso a paso."""
     
+    # Guardar tiempo de inicio
+    start_time = datetime.now()
+    
     print_header("EXTRACTOR DE LICITACIONES - CONTRATACIÓN DEL ESTADO")
-    print_info(f"Inicio: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+    print_info(f"Inicio: {start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
     
     # PASO 0: Seleccionar región y URL al inicio
     url_seleccionada, region_nombre = select_region_url()
@@ -1006,7 +1035,12 @@ def main():
             else:
                 print_warning("No se extrajeron datos")
         
-        print_info(f"Fin: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        # Calcular y mostrar tiempo total transcurrido
+        end_time = datetime.now()
+        elapsed_time = (end_time - start_time).total_seconds()
+        elapsed_formatted = format_elapsed_time(elapsed_time)
+        print_info(f"Fin: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print_info(f"Tiempo total transcurrido: {elapsed_formatted}")
         
     except KeyboardInterrupt:
         print_warning("\nProceso interrumpido por el usuario")
@@ -1016,7 +1050,7 @@ def main():
         traceback.print_exc()
     finally:
         print("\n" + "─"*70)
-        input("Presiona Enter para cerrar el navegador...")
+        print_success("Cerrando navegador...")
         navigator.close()
 
 
