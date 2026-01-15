@@ -735,6 +735,33 @@ def main():
         
         print("\n✅ Campos del formulario rellenados\n")
         
+        # PASO 3: Click en el botón "Buscar"
+        print("\n🔄 Haciendo click en el botón 'Buscar'...")
+        buscar_selectors = [
+            "//input[contains(@id, 'busReasProc18')]",
+            "//input[contains(@name, 'busReasProc18')]",
+            "//input[@type='submit' and @value='Buscar']",
+            "//input[@title='Buscar']",
+            "//input[@value='Buscar' and @type='submit']",
+        ]
+        
+        if navigator.click_element_multiple_selectors(
+            buscar_selectors,
+            "Botón Buscar",
+            timeout=10000
+        ):
+            # Esperar a que se procese la búsqueda
+            print("⏳ Esperando a que se procesen los resultados de búsqueda...")
+            navigator.page.wait_for_load_state("networkidle", timeout=30000)
+            time.sleep(2)
+            
+            # Tomar captura después de la búsqueda
+            navigator.take_screenshot("04_resultados_busqueda.png")
+            print("✅ Búsqueda completada")
+        else:
+            print("⚠️  No se pudo hacer click en el botón Buscar")
+            navigator.take_screenshot("04_error_buscar.png")
+        
         # Continúa agregando pasos según necesites...
         
         print("\n" + "="*50)
