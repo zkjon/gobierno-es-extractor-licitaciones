@@ -83,26 +83,32 @@ def get_all_regions():
 
 def get_csv_filename(region_nombre: str):
     """
-    Genera el nombre del archivo CSV según la región.
+    Genera el nombre del archivo CSV según la región con timestamp.
     
     Args:
         region_nombre: Nombre de la región
     
     Returns:
-        Ruta completa del archivo CSV en la carpeta suministrations/
+        Ruta completa del archivo CSV en formato: suministrations/[region]/[region]_YYYY-MM-DD_HH-MM-SS.csv
     """
     import os
+    from datetime import datetime
     
-    # Crear carpeta suministrations si no existe
-    output_dir = "suministrations"
+    # Normalizar nombre de región para la carpeta
+    region_folder = region_nombre.lower()
+    if region_folder == "todas":
+        region_folder = "todas"
+    
+    # Crear estructura de carpetas: suministrations/[region]/
+    output_dir = os.path.join("suministrations", region_folder)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     
-    # Generar nombre del archivo
-    if region_nombre.lower() == "todas":
-        filename = "todas_las_suministraciones.csv"
-    else:
-        filename = f"{region_nombre.lower()}_suministraciones.csv"
+    # Generar timestamp en formato YYYY-MM-DD_HH-MM-SS
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    
+    # Generar nombre del archivo con timestamp
+    filename = f"export_{timestamp}.csv"
     
     # Devolver ruta completa
     return os.path.join(output_dir, filename)
