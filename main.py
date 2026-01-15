@@ -5,9 +5,54 @@ de contratación del estado español y extraer datos específicos.
 
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 import time
-import json
 import csv
+import json
 from typing import Dict, Optional, List
+from datetime import datetime
+
+
+def print_header(text: str):
+    """Imprime un encabezado formateado."""
+    print("\n" + "="*70)
+    print(f"  {text}")
+    print("="*70)
+
+
+def print_step(step_num: int, total_steps: int, description: str):
+    """Imprime un paso del proceso con formato."""
+    print(f"\n[{step_num}/{total_steps}] {description}")
+    print("-" * 70)
+
+
+def print_success(message: str):
+    """Imprime un mensaje de éxito."""
+    print(f"✅ {message}")
+
+
+def print_error(message: str):
+    """Imprime un mensaje de error."""
+    print(f"❌ {message}")
+
+
+def print_warning(message: str):
+    """Imprime un mensaje de advertencia."""
+    print(f"⚠️  {message}")
+
+
+def print_info(message: str):
+    """Imprime un mensaje informativo."""
+    print(f"ℹ️  {message}")
+
+
+def print_progress(current: int, total: int, item: str = ""):
+    """Imprime el progreso de una operación."""
+    percentage = int((current / total) * 100) if total > 0 else 0
+    bar_length = 40
+    filled = int(bar_length * current / total) if total > 0 else 0
+    bar = "█" * filled + "░" * (bar_length - filled)
+    print(f"\r  [{bar}] {percentage:3d}% ({current}/{total}) {item}", end="", flush=True)
+    if current == total:
+        print()  # Nueva línea al completar
 
 
 class ContratacionNavigator:
@@ -32,35 +77,38 @@ class ContratacionNavigator:
     
     def start(self):
         """Inicia el navegador y la página."""
-        print("🚀 Iniciando navegador...")
-        self.playwright = sync_playwright().start()
-        self.browser = self.playwright.chromium.launch(
-            headless=self.headless,
-            slow_mo=self.slow_mo
-        )
-        # Crear contexto con configuración en español de España
-        self.context = self.browser.new_context(
-            locale="es-ES",
-            timezone_id="Europe/Madrid",
-            viewport={"width": 1920, "height": 1080}
-        )
-        self.page = self.context.new_page()
-        print("✅ Navegador iniciado correctamente (configurado en español de España)")
+        print_info("Iniciando navegador...")
+        try:
+            self.playwright = sync_playwright().start()
+            self.browser = self.playwright.chromium.launch(
+                headless=self.headless,
+                slow_mo=self.slow_mo
+            )
+            # Crear contexto con configuración en español de España
+            self.context = self.browser.new_context(
+                locale="es-ES",
+                timezone_id="Europe/Madrid",
+                viewport={"width": 1920, "height": 1080}
+            )
+            self.page = self.context.new_page()
+            print_success("Navegador iniciado (configurado en español de España)")
+        except Exception as e:
+            print_error(f"Error al iniciar el navegador: {str(e)}")
+            raise
     
     def navigate_to_page(self):
         """Navega a la página inicial."""
-        print(f"🌐 Navegando a: {self.base_url}")
+        print_info(f"Navegando a la página...")
         try:
             self.page.goto(self.base_url, wait_until="networkidle", timeout=30000)
-            print("✅ Página cargada correctamente")
-            # Esperar un momento para que la página se renderice completamente
-            time.sleep(2)
+            time.sleep(1)  # Espera reducida
+            print_success("Página cargada correctamente")
             return True
         except PlaywrightTimeoutError:
-            print("❌ Error: Timeout al cargar la página")
+            print_error("Timeout al cargar la página (30 segundos)")
             return False
         except Exception as e:
-            print(f"❌ Error al navegar: {str(e)}")
+            print_error(f"Error al navegar: {str(e)}")
             return False
     
     def click_element(self, selector: str, description: str = "", timeout: int = 10000):
@@ -76,17 +124,12 @@ class ContratacionNavigator:
             True si el click fue exitoso, False en caso contrario
         """
         try:
-            print(f"🖱️  Haciendo click en: {description or selector}")
-            
             # Intentar diferentes métodos de selección
             if selector.startswith("//") or selector.startswith("(//"):
-                # XPath
                 element = self.page.locator(selector).first
             elif selector.startswith("text="):
-                # Selector de texto
                 element = self.page.locator(selector).first
             else:
-                # CSS selector
                 element = self.page.locator(selector).first
             
             # Esperar a que el elemento sea visible y clickeable
@@ -94,15 +137,12 @@ class ContratacionNavigator:
             element.scroll_into_view_if_needed()
             element.click(timeout=timeout)
             
-            print(f"✅ Click realizado correctamente")
-            time.sleep(1)  # Pequeña pausa después del click
+            time.sleep(0.5)  # Pausa reducida
             return True
             
         except PlaywrightTimeoutError:
-            print(f"❌ Error: No se encontró el elemento '{description or selector}' después de {timeout}ms")
             return False
         except Exception as e:
-            print(f"❌ Error al hacer click: {str(e)}")
             return False
     
     def click_element_multiple_selectors(self, selectors: list, description: str = "", timeout: int = 15000):
@@ -117,14 +157,16 @@ class ContratacionNavigator:
         Returns:
             True si algún click fue exitoso, False en caso contrario
         """
-        print(f"🔍 Buscando elemento: {description}")
-        for i, selector in enumerate(selectors, 1):
-            print(f"   Intentando selector {i}/{len(selectors)}: {selector[:80]}...")
-            if self.click_element(selector, description, timeout=timeout // len(selectors)):
-                return True
-            time.sleep(0.5)  # Pequeña pausa entre intentos
+        print_info(f"Buscando: {description}")
+        timeout_per_selector = max(3000, timeout // len(selectors))
         
-        print(f"❌ No se pudo encontrar el elemento '{description}' con ninguno de los selectores")
+        for i, selector in enumerate(selectors, 1):
+            if self.click_element(selector, description, timeout=timeout_per_selector):
+                print_success(f"Click en '{description}' realizado")
+                return True
+            time.sleep(0.2)  # Pausa reducida entre intentos
+        
+        print_error(f"No se encontró '{description}' después de {len(selectors)} intentos")
         return False
     
     def wait_for_element(self, selector: str, description: str = "", timeout: int = 10000):
@@ -167,8 +209,6 @@ class ContratacionNavigator:
             True si se rellenó correctamente, False en caso contrario
         """
         try:
-            print(f"✏️  Rellenando campo '{description or selector}' con: {value}")
-            
             if selector.startswith("//") or selector.startswith("(//"):
                 element = self.page.locator(selector).first
             else:
@@ -179,15 +219,12 @@ class ContratacionNavigator:
             element.clear()
             element.fill(value)
             
-            print(f"✅ Campo rellenado correctamente")
-            time.sleep(0.5)
+            time.sleep(0.2)
             return True
             
         except PlaywrightTimeoutError:
-            print(f"❌ Error: No se encontró el campo '{description or selector}' después de {timeout}ms")
             return False
-        except Exception as e:
-            print(f"❌ Error rellenando campo: {str(e)}")
+        except Exception:
             return False
     
     def select_option(self, selector: str, value: str, description: str = "", timeout: int = 10000):
@@ -204,8 +241,6 @@ class ContratacionNavigator:
             True si se seleccionó correctamente, False en caso contrario
         """
         try:
-            print(f"📋 Seleccionando '{value}' en: {description or selector}")
-            
             if selector.startswith("//") or selector.startswith("(//"):
                 element = self.page.locator(selector).first
             else:
@@ -215,78 +250,57 @@ class ContratacionNavigator:
             element.scroll_into_view_if_needed()
             
             # Intentar múltiples estrategias de selección
-            # Estrategia 1: Por texto visible exacto (label)
+            # Estrategia 1: Por value (más rápido y confiable)
             try:
-                element.select_option(label=value, timeout=3000)
-                print(f"✅ Opción seleccionada correctamente (por label exacto)")
-                time.sleep(0.5)
+                element.select_option(value=value, timeout=2000)
+                time.sleep(0.2)
                 return True
             except:
                 pass
             
-            # Estrategia 2: Por value
+            # Estrategia 2: Por texto visible exacto (label)
             try:
-                element.select_option(value=value, timeout=3000)
-                print(f"✅ Opción seleccionada correctamente (por value)")
-                time.sleep(0.5)
+                element.select_option(label=value, timeout=2000)
+                time.sleep(0.2)
                 return True
             except:
                 pass
             
-            # Estrategia 3: Buscar en todas las opciones por texto parcial o exacto
+            # Estrategia 3: Buscar en todas las opciones
             try:
                 options = element.locator("option").all()
-                print(f"   🔍 Buscando entre {len(options)} opciones disponibles...")
-                
                 for option in options:
                     try:
-                        option_text = option.inner_text(timeout=1000).strip()
+                        option_text = option.inner_text(timeout=500).strip()
                         option_value = option.get_attribute("value") or ""
                         
-                        # Buscar coincidencia exacta o parcial
                         if (value.lower() in option_text.lower() or 
                             option_text.lower() in value.lower() or
                             value == option_text or
                             value == option_value):
                             
-                            # Intentar seleccionar por value primero
                             if option_value:
-                                try:
-                                    element.select_option(value=option_value, timeout=3000)
-                                    print(f"✅ Opción '{option_text}' seleccionada correctamente (encontrada por texto)")
-                                    time.sleep(0.5)
-                                    return True
-                                except:
-                                    pass
+                                element.select_option(value=option_value, timeout=2000)
+                                time.sleep(0.2)
+                                return True
                             
-                            # Si falla, intentar por índice
-                            try:
-                                # Obtener el índice de la opción
-                                all_options = element.locator("option").all()
-                                for idx, opt in enumerate(all_options):
-                                    if opt == option:
-                                        element.select_option(index=idx, timeout=3000)
-                                        print(f"✅ Opción '{option_text}' seleccionada correctamente (por índice)")
-                                        time.sleep(0.5)
-                                        return True
-                            except:
-                                pass
+                            # Por índice
+                            all_options = element.locator("option").all()
+                            for idx, opt in enumerate(all_options):
+                                if opt == option:
+                                    element.select_option(index=idx, timeout=2000)
+                                    time.sleep(0.2)
+                                    return True
                     except:
                         continue
-            except Exception as e:
-                print(f"   ⚠️  Error buscando opciones: {str(e)}")
-            
-            # Si llegamos aquí, no se pudo seleccionar
-            print(f"❌ No se encontró la opción '{value}' en el select")
-            return False
+            except:
+                pass
             
             return False
             
         except PlaywrightTimeoutError:
-            print(f"❌ Error: No se encontró el select '{description or selector}' después de {timeout}ms")
             return False
-        except Exception as e:
-            print(f"❌ Error seleccionando opción: {str(e)}")
+        except Exception:
             return False
     
     def debug_list_form_elements(self):
@@ -348,14 +362,15 @@ class ContratacionNavigator:
         Returns:
             True si se rellenó correctamente, False en caso contrario
         """
-        print(f"🔍 Buscando campo: {description}")
-        for i, selector in enumerate(selectors, 1):
-            print(f"   Intentando selector {i}/{len(selectors)}: {selector[:80]}...")
-            if self.fill_input(selector, value, description, timeout=timeout // len(selectors)):
-                return True
-            time.sleep(0.3)
+        timeout_per_selector = max(3000, timeout // len(selectors))
         
-        print(f"❌ No se pudo encontrar el campo '{description}' con ninguno de los selectores")
+        for selector in selectors:
+            if self.fill_input(selector, value, description, timeout=timeout_per_selector):
+                print_success(f"Campo '{description}' rellenado: {value}")
+                return True
+            time.sleep(0.2)
+        
+        print_error(f"No se pudo rellenar '{description}'")
         return False
     
     def select_option_multiple_selectors(self, selectors: list, value: str, description: str = "", timeout: int = 15000):
@@ -371,14 +386,15 @@ class ContratacionNavigator:
         Returns:
             True si se seleccionó correctamente, False en caso contrario
         """
-        print(f"🔍 Buscando select: {description}")
-        for i, selector in enumerate(selectors, 1):
-            print(f"   Intentando selector {i}/{len(selectors)}: {selector[:80]}...")
-            if self.select_option(selector, value, description, timeout=timeout // len(selectors)):
-                return True
-            time.sleep(0.3)
+        timeout_per_selector = max(3000, timeout // len(selectors))
         
-        print(f"❌ No se pudo encontrar el select '{description}' con ninguno de los selectores")
+        for selector in selectors:
+            if self.select_option(selector, value, description, timeout=timeout_per_selector):
+                print_success(f"'{description}' = '{value}'")
+                return True
+            time.sleep(0.2)
+        
+        print_error(f"No se pudo seleccionar '{value}' en '{description}'")
         return False
     
     def extract_text(self, selector: str, description: str = "", save_key: Optional[str] = None):
@@ -442,11 +458,7 @@ class ContratacionNavigator:
         """
         links = []
         try:
-            print("🔍 Buscando enlaces en los resultados...")
-            
             # Buscar enlaces en la tabla de resultados
-            # Los enlaces están en <a href="...detalle_licitacion..." target="_blank">
-            # dentro de la columna tdExpediente
             link_elements = self.page.locator("//table[@id='tableLicitacionesPerfilContratante']//td[@class='tdExpediente']//a[@target='_blank']").all()
             
             for element in link_elements:
@@ -458,16 +470,14 @@ class ContratacionNavigator:
                             href = "https://contrataciondelestado.es" + href
                         elif not href.startswith("http"):
                             href = "https://contrataciondelestado.es" + href
-                        # Evitar duplicados
                         if href not in links:
                             links.append(href)
                 except:
                     continue
             
-            # Si no encontramos con el selector anterior, intentar método alternativo
+            # Método alternativo si no se encontraron
             if not links:
-                print("   Intentando método alternativo...")
-                all_links = self.page.locator("//a[contains(@href, 'detalle_licitacion')]").all()
+                all_links = self.page.locator("//a[contains(@href, 'detalle_licitacion') and contains(@href, 'idEvl=')]").all()
                 for element in all_links:
                     try:
                         href = element.get_attribute("href")
@@ -481,10 +491,9 @@ class ContratacionNavigator:
                     except:
                         continue
             
-            print(f"✅ Encontrados {len(links)} enlaces")
             return links
         except Exception as e:
-            print(f"❌ Error obteniendo enlaces: {str(e)}")
+            print_error(f"Error obteniendo enlaces: {str(e)}")
             return links
     
     def extract_detail_data(self):
@@ -502,80 +511,56 @@ class ContratacionNavigator:
         }
         
         try:
-            # Esperar a que la página cargue
-            self.page.wait_for_load_state("networkidle", timeout=30000)
-            time.sleep(1)
+            self.page.wait_for_load_state("networkidle", timeout=20000)
+            time.sleep(0.5)
             
             # Extraer Valor estimado del contrato
             try:
-                valor_selectors = [
-                    "//span[contains(@id, 'text_ValorContrato')]",
-                    "//span[contains(@id, 'ValorContrato')]",
-                    "//*[contains(text(), 'Valor estimado del contrato')]/following::span[1]",
-                ]
-                for selector in valor_selectors:
+                valor_element = self.page.locator("//span[contains(@id, 'text_ValorContrato')]").first
+                if valor_element.is_visible(timeout=2000):
+                    valor_text = valor_element.inner_text(timeout=1000).strip()
+                    # Buscar "Euros" cerca
                     try:
-                        element = self.page.locator(selector).first
-                        if element.is_visible(timeout=3000):
-                            valor_text = element.inner_text(timeout=2000).strip()
-                            # Obtener también el texto "Euros" si está cerca
-                            parent = element.locator("..")
-                            euros = parent.locator("//span[contains(text(), 'Euros')]").first
-                            if euros.is_visible(timeout=1000):
-                                valor_text += " " + euros.inner_text(timeout=1000).strip()
-                            data["valor_estimado"] = valor_text
-                            break
+                        parent = valor_element.locator("..")
+                        euros = parent.locator("//span[contains(text(), 'Euros')]").first
+                        if euros.is_visible(timeout=500):
+                            valor_text += " " + euros.inner_text(timeout=500).strip()
                     except:
-                        continue
-            except Exception as e:
-                print(f"   ⚠️  Error extrayendo valor estimado: {str(e)}")
+                        pass
+                    data["valor_estimado"] = valor_text
+            except:
+                pass
             
             # Extraer Adjudicatario
             try:
-                adjudicatario_selectors = [
-                    "//span[contains(@id, 'text_Adjudicatario')]",
-                    "//span[contains(@id, 'Adjudicatario')]",
-                    "//*[contains(text(), 'Adjudicatario')]/following::span[1]",
-                ]
-                for selector in adjudicatario_selectors:
-                    try:
-                        element = self.page.locator(selector).first
-                        if element.is_visible(timeout=3000):
-                            data["adjudicatario"] = element.inner_text(timeout=2000).strip()
-                            break
-                    except:
-                        continue
-            except Exception as e:
-                print(f"   ⚠️  Error extrayendo adjudicatario: {str(e)}")
+                adjudicatario_element = self.page.locator("//span[contains(@id, 'text_Adjudicatario')]").first
+                if adjudicatario_element.is_visible(timeout=2000):
+                    data["adjudicatario"] = adjudicatario_element.inner_text(timeout=1000).strip()
+            except:
+                pass
             
-            # Extraer Fecha de publicación y Tipo de documento de "Adjudicación"
+            # Extraer Fecha y Tipo de documento de "Adjudicación"
             try:
-                # Buscar en la tabla "Anuncios y Documentos" la fila con "Adjudicación"
                 tabla_rows = self.page.locator("//table[@id='myTablaDetalleVISUOE']//tbody//tr").all()
-                
                 for row in tabla_rows:
                     try:
-                        # Verificar si esta fila contiene "Adjudicación"
                         tipo_doc = row.locator("td[2]").first
-                        if tipo_doc.is_visible(timeout=1000):
-                            tipo_text = tipo_doc.inner_text(timeout=1000).strip()
+                        if tipo_doc.is_visible(timeout=500):
+                            tipo_text = tipo_doc.inner_text(timeout=500).strip()
                             if "Adjudicación" in tipo_text:
-                                # Extraer fecha
                                 fecha_cell = row.locator("td[1]").first
-                                if fecha_cell.is_visible(timeout=1000):
-                                    fecha_text = fecha_cell.inner_text(timeout=1000).strip()
-                                    data["fecha_publicacion"] = fecha_text
+                                if fecha_cell.is_visible(timeout=500):
+                                    data["fecha_publicacion"] = fecha_cell.inner_text(timeout=500).strip()
                                 data["tipo_documento"] = tipo_text
                                 break
                     except:
                         continue
-            except Exception as e:
-                print(f"   ⚠️  Error extrayendo fecha y documento: {str(e)}")
+            except:
+                pass
             
             return data
             
         except Exception as e:
-            print(f"❌ Error extrayendo datos del detalle: {str(e)}")
             return data
     
     def save_to_csv(self, data_list: List[Dict], filename: str = "licitaciones.csv"):
@@ -588,22 +573,22 @@ class ContratacionNavigator:
         """
         try:
             if not data_list:
-                print("⚠️  No hay datos para guardar")
+                print_warning("No hay datos para guardar")
                 return
             
             # Determinar las columnas según si hay datos de región o no
             fieldnames = ["url", "valor_estimado", "adjudicatario", "fecha_publicacion", "tipo_documento"]
             if any("region" in data for data in data_list):
-                fieldnames.insert(1, "region")  # Insertar región después de URL
+                fieldnames.insert(1, "region")
             
             with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(data_list)
             
-            print(f"💾 Datos guardados en CSV: {filename} ({len(data_list)} registros)")
+            print_success(f"CSV guardado: {filename} ({len(data_list)} registros)")
         except Exception as e:
-            print(f"❌ Error guardando CSV: {str(e)}")
+            print_error(f"Error guardando CSV: {str(e)}")
     
     def show_menu_and_select_region(self):
         """
@@ -719,33 +704,32 @@ def select_region_url():
         }
     }
     
-    print("\n" + "="*50)
-    print("SELECCIONA UNA REGIÓN")
-    print("="*50)
+    print_header("SELECCIÓN DE REGIÓN")
     print("\nOpciones disponibles:")
     for key, value in urls_regiones.items():
         print(f"  {key}. {value['nombre']}")
-    print("\n" + "-"*50)
+    print()
     
     while True:
         try:
-            seleccion = input("Selecciona una opción (1-5): ").strip()
+            seleccion = input("👉 Selecciona una opción (1-5): ").strip()
             
             if seleccion in urls_regiones:
                 region = urls_regiones[seleccion]
-                print(f"\n✅ Has seleccionado: {region['nombre']}")
+                print_success(f"Región seleccionada: {region['nombre']}")
                 if region['url'] != 'TODAS':
-                    print(f"📍 URL: {region['url']}\n")
+                    print_info(f"URL: {region['url']}")
                 else:
-                    print("📍 Se procesarán todas las regiones\n")
+                    print_info("Se procesarán todas las regiones (Sur, Este, Oeste, Centro)")
+                print()
                 return region['url'], region['nombre']
             else:
-                print("❌ Opción no válida. Por favor, selecciona un número del 1 al 5.")
+                print_error("Opción no válida. Por favor, selecciona un número del 1 al 5.")
         except KeyboardInterrupt:
-            print("\n⚠️  Selección cancelada por el usuario")
+            print_warning("\nSelección cancelada por el usuario")
             return None, None
         except Exception as e:
-            print(f"❌ Error: {str(e)}")
+            print_error(f"Error: {str(e)}")
             return None, None
 
 
@@ -792,23 +776,19 @@ def process_region(navigator: ContratacionNavigator, url: str, region_nombre: st
     Returns:
         Lista de diccionarios con los datos extraídos
     """
-    print(f"\n{'='*60}")
-    print(f"PROCESANDO REGIÓN: {region_nombre.upper()}")
-    print(f"{'='*60}\n")
+    print_header(f"PROCESANDO REGIÓN: {region_nombre.upper()}")
     
     # Establecer la URL
     navigator.base_url = url
     
     # Navegar a la página inicial
+    print_step(1, 4, f"Navegando a la página de {region_nombre}")
     if not navigator.navigate_to_page():
-        print(f"❌ No se pudo cargar la página para {region_nombre}")
+        print_error(f"No se pudo cargar la página para {region_nombre}")
         return []
     
-    # Esperar a que la página cargue completamente
-    navigator.page.wait_for_load_state("networkidle", timeout=30000)
-    time.sleep(2)
-    
     # PASO 1: Click en la pestaña "Licitaciones"
+    print_step(2, 4, "Accediendo a la sección de Licitaciones")
     licitaciones_selectors = [
         "//input[contains(@id, 'linkPrepLic')]",
         "//input[contains(@name, 'linkPrepLic')]",
@@ -821,17 +801,16 @@ def process_region(navigator: ContratacionNavigator, url: str, region_nombre: st
         "Pestaña Licitaciones",
         timeout=20000
     ):
-        print(f"⚠️  No se pudo encontrar la pestaña Licitaciones para {region_nombre}")
+        print_error(f"No se pudo encontrar la pestaña Licitaciones para {region_nombre}")
         return []
     
-    # Esperar a que cargue
     navigator.page.wait_for_load_state("networkidle", timeout=30000)
-    time.sleep(3)
+    time.sleep(2)
     
     # PASO 2: Rellenar campos del formulario
-    print("\n🔄 Rellenando formulario...")
+    print_step(3, 4, "Rellenando formulario de búsqueda")
+    print_info("Configurando filtros: Tipo=Suministros, Estado=Resuelta, Objeto=alimentación")
     
-    # Tipo de contrato = "Suministros"
     tipo_contrato_selectors = [
         "//select[contains(@name, 'busReasProc07')]",
         "//select[contains(@id, 'busReasProc07')]",
@@ -843,9 +822,8 @@ def process_region(navigator: ContratacionNavigator, url: str, region_nombre: st
         "Tipo de contrato",
         timeout=8000
     )
-    time.sleep(0.3)
+    time.sleep(0.2)
     
-    # Estado = "Resuelta"
     estado_selectors = [
         "//select[contains(@name, 'busReasProc11')]",
         "//select[contains(@id, 'busReasProc11')]",
@@ -857,9 +835,8 @@ def process_region(navigator: ContratacionNavigator, url: str, region_nombre: st
         "Estado",
         timeout=8000
     )
-    time.sleep(0.3)
+    time.sleep(0.2)
     
-    # Objeto del contrato = "alimentación"
     objeto_selectors = [
         "//textarea[contains(@name, 'busReasProc17')]",
         "//textarea[contains(@id, 'busReasProc17')]",
@@ -884,46 +861,50 @@ def process_region(navigator: ContratacionNavigator, url: str, region_nombre: st
         "Botón Buscar",
         timeout=10000
     ):
-        print(f"⚠️  No se pudo hacer click en Buscar para {region_nombre}")
+        print_error(f"No se pudo hacer click en Buscar para {region_nombre}")
         return []
     
     navigator.page.wait_for_load_state("networkidle", timeout=30000)
-    time.sleep(2)
+    time.sleep(1.5)
     
     # PASO 4: Extraer datos de todos los enlaces
+    print_step(4, 4, "Extrayendo datos de los resultados")
     all_extracted_data = []
     page_num = 1
+    total_processed = 0
     
     while True:
         links = navigator.get_result_links()
         
         if not links:
+            if page_num == 1:
+                print_warning("No se encontraron resultados")
             break
         
-        print(f"\n📄 Página {page_num}: {len(links)} enlaces")
+        print_info(f"Página {page_num}: {len(links)} licitaciones encontradas")
         
         for i, link in enumerate(links, 1):
-            print(f"  [{i}/{len(links)}] Procesando...", end=" ")
+            print_progress(i, len(links), f"Página {page_num}")
             
             try:
                 original_page = navigator.page
                 new_page = navigator.context.new_page()
                 navigator.page = new_page
-                new_page.goto(link, wait_until="networkidle", timeout=30000)
-                time.sleep(1)
+                new_page.goto(link, wait_until="networkidle", timeout=25000)
+                time.sleep(0.5)
                 
                 data = navigator.extract_detail_data()
                 data["url"] = link
-                data["region"] = region_nombre  # Agregar región a los datos
+                data["region"] = region_nombre
                 all_extracted_data.append(data)
+                total_processed += 1
                 
                 new_page.close()
                 navigator.page = original_page
-                time.sleep(0.3)
-                print("✅")
+                time.sleep(0.2)
                 
             except Exception as e:
-                print(f"❌ Error: {str(e)[:50]}")
+                print_warning(f"Error procesando licitación: {str(e)[:40]}")
                 try:
                     new_page.close()
                     navigator.page = original_page
@@ -946,7 +927,7 @@ def process_region(navigator: ContratacionNavigator, url: str, region_nombre: st
                     if siguiente_button.is_visible(timeout=2000) and siguiente_button.is_enabled():
                         siguiente_button.click()
                         navigator.page.wait_for_load_state("networkidle", timeout=30000)
-                        time.sleep(2)
+                        time.sleep(1.5)
                         page_num += 1
                         siguiente_encontrado = True
                         break
@@ -958,21 +939,21 @@ def process_region(navigator: ContratacionNavigator, url: str, region_nombre: st
         except:
             break
     
-    print(f"\n✅ {region_nombre}: {len(all_extracted_data)} registros extraídos")
+    print_success(f"{region_nombre}: {total_processed} registros extraídos de {page_num} página(s)")
     return all_extracted_data
 
 
 def main():
     """Función principal para ejecutar la navegación paso a paso."""
     
+    print_header("EXTRACTOR DE LICITACIONES - CONTRATACIÓN DEL ESTADO")
+    print_info(f"Inicio: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+    
     # PASO 0: Seleccionar región y URL al inicio
-    print("\n" + "="*50)
-    print("BIENVENIDO A LA APLICACIÓN DE NAVEGACIÓN")
-    print("="*50)
     url_seleccionada, region_nombre = select_region_url()
     
     if not url_seleccionada:
-        print("❌ No se seleccionó ninguna región. Saliendo...")
+        print_error("No se seleccionó ninguna región. Saliendo...")
         return
     
     # Crear instancia del navegador
@@ -984,22 +965,33 @@ def main():
         
         # Determinar qué regiones procesar
         if url_seleccionada == "TODAS":
-            # Procesar todas las regiones
+            print_header("PROCESANDO TODAS LAS REGIONES")
             todas_las_regiones = get_all_regions()
             all_combined_data = []
+            regiones_procesadas = 0
             
-            for region in todas_las_regiones:
+            for idx, region in enumerate(todas_las_regiones, 1):
+                print(f"\n{'─'*70}")
+                print_info(f"Región {idx}/{len(todas_las_regiones)}: {region['nombre']}")
+                print(f"{'─'*70}")
+                
                 data_region = process_region(navigator, region['url'], region['nombre'])
                 all_combined_data.extend(data_region)
-                time.sleep(1)  # Pausa entre regiones
+                regiones_procesadas += 1
+                
+                if idx < len(todas_las_regiones):
+                    print_info("Pausa antes de procesar la siguiente región...")
+                    time.sleep(1)
             
             # Guardar todos los datos combinados
             if all_combined_data:
                 filename = get_csv_filename("Todas")
                 navigator.save_to_csv(all_combined_data, filename)
-                print(f"\n✅ Proceso completado: {len(all_combined_data)} registros de todas las regiones")
+                print_header("PROCESO COMPLETADO")
+                print_success(f"Total: {len(all_combined_data)} registros de {regiones_procesadas} región(es)")
+                print_success(f"Archivo guardado: {filename}")
             else:
-                print("\n⚠️  No se extrajeron datos de ninguna región")
+                print_warning("No se extrajeron datos de ninguna región")
         else:
             # Procesar una sola región
             all_extracted_data = process_region(navigator, url_seleccionada, region_nombre)
@@ -1008,22 +1000,22 @@ def main():
             if all_extracted_data:
                 filename = get_csv_filename(region_nombre)
                 navigator.save_to_csv(all_extracted_data, filename)
-                print(f"\n✅ Proceso completado: {len(all_extracted_data)} registros")
+                print_header("PROCESO COMPLETADO")
+                print_success(f"Total: {len(all_extracted_data)} registros extraídos")
+                print_success(f"Archivo guardado: {filename}")
             else:
-                print("\n⚠️  No se extrajeron datos")
+                print_warning("No se extrajeron datos")
         
-        print("\n" + "="*50)
-        print("NAVEGACIÓN COMPLETADA")
-        print("="*50 + "\n")
+        print_info(f"Fin: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
     except KeyboardInterrupt:
-        print("\n⚠️  Proceso interrumpido por el usuario")
+        print_warning("\nProceso interrumpido por el usuario")
     except Exception as e:
-        print(f"\n❌ Error inesperado: {str(e)}")
+        print_error(f"Error inesperado: {str(e)}")
         import traceback
         traceback.print_exc()
     finally:
-        # Pulsar Enter para cerrar
+        print("\n" + "─"*70)
         input("Presiona Enter para cerrar el navegador...")
         navigator.close()
 
