@@ -6,7 +6,8 @@ de contratación del estado español y extraer datos específicos.
 from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 import time
 import json
-from typing import Dict, Optional
+import csv
+from typing import Dict, Optional, List
 
 
 class ContratacionNavigator:
@@ -431,6 +432,176 @@ class ContratacionNavigator:
         except Exception as e:
             print(f"❌ Error al guardar datos: {str(e)}")
     
+    def get_result_links(self):
+        """
+        Obtiene todos los enlaces de los resultados de búsqueda.
+        Busca enlaces en la tabla de resultados que apuntan a detalle_licitacion.
+        
+        Returns:
+            Lista de URLs de los enlaces encontrados
+        """
+        links = []
+        try:
+            print("🔍 Buscando enlaces en los resultados...")
+            
+            # Buscar enlaces en la tabla de resultados
+            # Los enlaces están en <a href="...detalle_licitacion..." target="_blank">
+            # dentro de la columna tdExpediente
+            link_elements = self.page.locator("//table[@id='tableLicitacionesPerfilContratante']//td[@class='tdExpediente']//a[@target='_blank']").all()
+            
+            for element in link_elements:
+                try:
+                    href = element.get_attribute("href")
+                    if href and "detalle_licitacion" in href:
+                        # Asegurar que la URL sea absoluta
+                        if href.startswith("/"):
+                            href = "https://contrataciondelestado.es" + href
+                        elif not href.startswith("http"):
+                            href = "https://contrataciondelestado.es" + href
+                        # Evitar duplicados
+                        if href not in links:
+                            links.append(href)
+                except:
+                    continue
+            
+            # Si no encontramos con el selector anterior, intentar método alternativo
+            if not links:
+                print("   Intentando método alternativo...")
+                all_links = self.page.locator("//a[contains(@href, 'detalle_licitacion')]").all()
+                for element in all_links:
+                    try:
+                        href = element.get_attribute("href")
+                        if href and "detalle_licitacion" in href and "idEvl=" in href:
+                            if href.startswith("/"):
+                                href = "https://contrataciondelestado.es" + href
+                            elif not href.startswith("http"):
+                                href = "https://contrataciondelestado.es" + href
+                            if href not in links:
+                                links.append(href)
+                    except:
+                        continue
+            
+            print(f"✅ Encontrados {len(links)} enlaces")
+            return links
+        except Exception as e:
+            print(f"❌ Error obteniendo enlaces: {str(e)}")
+            return links
+    
+    def extract_detail_data(self):
+        """
+        Extrae los datos específicos de la página de detalle de una licitación.
+        
+        Returns:
+            Diccionario con los datos extraídos
+        """
+        data = {
+            "valor_estimado": "",
+            "adjudicatario": "",
+            "fecha_publicacion": "",
+            "tipo_documento": ""
+        }
+        
+        try:
+            # Esperar a que la página cargue
+            self.page.wait_for_load_state("networkidle", timeout=30000)
+            time.sleep(1)
+            
+            # Extraer Valor estimado del contrato
+            try:
+                valor_selectors = [
+                    "//span[contains(@id, 'text_ValorContrato')]",
+                    "//span[contains(@id, 'ValorContrato')]",
+                    "//*[contains(text(), 'Valor estimado del contrato')]/following::span[1]",
+                ]
+                for selector in valor_selectors:
+                    try:
+                        element = self.page.locator(selector).first
+                        if element.is_visible(timeout=3000):
+                            valor_text = element.inner_text(timeout=2000).strip()
+                            # Obtener también el texto "Euros" si está cerca
+                            parent = element.locator("..")
+                            euros = parent.locator("//span[contains(text(), 'Euros')]").first
+                            if euros.is_visible(timeout=1000):
+                                valor_text += " " + euros.inner_text(timeout=1000).strip()
+                            data["valor_estimado"] = valor_text
+                            break
+                    except:
+                        continue
+            except Exception as e:
+                print(f"   ⚠️  Error extrayendo valor estimado: {str(e)}")
+            
+            # Extraer Adjudicatario
+            try:
+                adjudicatario_selectors = [
+                    "//span[contains(@id, 'text_Adjudicatario')]",
+                    "//span[contains(@id, 'Adjudicatario')]",
+                    "//*[contains(text(), 'Adjudicatario')]/following::span[1]",
+                ]
+                for selector in adjudicatario_selectors:
+                    try:
+                        element = self.page.locator(selector).first
+                        if element.is_visible(timeout=3000):
+                            data["adjudicatario"] = element.inner_text(timeout=2000).strip()
+                            break
+                    except:
+                        continue
+            except Exception as e:
+                print(f"   ⚠️  Error extrayendo adjudicatario: {str(e)}")
+            
+            # Extraer Fecha de publicación y Tipo de documento de "Adjudicación"
+            try:
+                # Buscar en la tabla "Anuncios y Documentos" la fila con "Adjudicación"
+                tabla_rows = self.page.locator("//table[@id='myTablaDetalleVISUOE']//tbody//tr").all()
+                
+                for row in tabla_rows:
+                    try:
+                        # Verificar si esta fila contiene "Adjudicación"
+                        tipo_doc = row.locator("td[2]").first
+                        if tipo_doc.is_visible(timeout=1000):
+                            tipo_text = tipo_doc.inner_text(timeout=1000).strip()
+                            if "Adjudicación" in tipo_text:
+                                # Extraer fecha
+                                fecha_cell = row.locator("td[1]").first
+                                if fecha_cell.is_visible(timeout=1000):
+                                    fecha_text = fecha_cell.inner_text(timeout=1000).strip()
+                                    data["fecha_publicacion"] = fecha_text
+                                data["tipo_documento"] = tipo_text
+                                break
+                    except:
+                        continue
+            except Exception as e:
+                print(f"   ⚠️  Error extrayendo fecha y documento: {str(e)}")
+            
+            return data
+            
+        except Exception as e:
+            print(f"❌ Error extrayendo datos del detalle: {str(e)}")
+            return data
+    
+    def save_to_csv(self, data_list: List[Dict], filename: str = "licitaciones.csv"):
+        """
+        Guarda los datos extraídos en un archivo CSV.
+        
+        Args:
+            data_list: Lista de diccionarios con los datos a guardar
+            filename: Nombre del archivo CSV
+        """
+        try:
+            if not data_list:
+                print("⚠️  No hay datos para guardar")
+                return
+            
+            fieldnames = ["url", "valor_estimado", "adjudicatario", "fecha_publicacion", "tipo_documento"]
+            
+            with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(data_list)
+            
+            print(f"💾 Datos guardados en CSV: {filename} ({len(data_list)} registros)")
+        except Exception as e:
+            print(f"❌ Error guardando CSV: {str(e)}")
+    
     def show_menu_and_select_region(self):
         """
         Muestra un menú interactivo para seleccionar una región.
@@ -758,6 +929,106 @@ def main():
             # Tomar captura después de la búsqueda
             navigator.take_screenshot("04_resultados_busqueda.png")
             print("✅ Búsqueda completada")
+            
+            # PASO 4: Extraer datos de cada enlace de los resultados
+            print("\n" + "="*50)
+            print("EXTRAYENDO DATOS DE LOS RESULTADOS")
+            print("="*50 + "\n")
+            
+            all_extracted_data = []
+            page_num = 1
+            
+            while True:
+                # Obtener todos los enlaces de la página actual
+                links = navigator.get_result_links()
+                
+                if not links:
+                    print("⚠️  No se encontraron enlaces en esta página")
+                    break
+                
+                print(f"\n📄 Procesando página {page_num} con {len(links)} enlaces...")
+                
+                # Procesar cada enlace
+                for i, link in enumerate(links, 1):
+                    print(f"\n[{i}/{len(links)}] Procesando enlace: {link[:80]}...")
+                    
+                    try:
+                        # Guardar la página actual
+                        original_page = navigator.page
+                        
+                        # Abrir el enlace en una nueva pestaña
+                        new_page = navigator.context.new_page()
+                        navigator.page = new_page
+                        new_page.goto(link, wait_until="networkidle", timeout=30000)
+                        time.sleep(2)
+                        
+                        # Extraer datos
+                        data = navigator.extract_detail_data()
+                        
+                        # Agregar URL del enlace a los datos
+                        data["url"] = link
+                        all_extracted_data.append(data)
+                        
+                        print(f"   ✅ Datos extraídos:")
+                        print(f"      - Valor estimado: {data['valor_estimado']}")
+                        print(f"      - Adjudicatario: {data['adjudicatario']}")
+                        print(f"      - Fecha publicación: {data['fecha_publicacion']}")
+                        print(f"      - Tipo documento: {data['tipo_documento']}")
+                        
+                        # Cerrar la pestaña y restaurar la página original
+                        new_page.close()
+                        navigator.page = original_page
+                        time.sleep(0.5)
+                        
+                    except Exception as e:
+                        print(f"   ❌ Error procesando enlace: {str(e)}")
+                        try:
+                            new_page.close()
+                            navigator.page = original_page
+                        except:
+                            pass
+                        continue
+                
+                # Verificar si hay siguiente página
+                try:
+                    # Buscar el botón "Siguiente >>" que es un input submit
+                    siguiente_selectors = [
+                        "//input[@id='viewns_Z7_AVEQAI930GRPE02BR764FO30G0_:form1:siguienteLink']",
+                        "//input[@name='viewns_Z7_AVEQAI930GRPE02BR764FO30G0_:form1:siguienteLink']",
+                        "//input[@type='submit' and contains(@value, 'Siguiente')]",
+                        "//input[contains(@value, 'Siguiente') and @type='submit']",
+                    ]
+                    
+                    siguiente_encontrado = False
+                    for selector in siguiente_selectors:
+                        try:
+                            siguiente_button = navigator.page.locator(selector).first
+                            if siguiente_button.is_visible(timeout=2000) and siguiente_button.is_enabled():
+                                print(f"\n➡️  Navegando a la página {page_num + 1}...")
+                                siguiente_button.click()
+                                navigator.page.wait_for_load_state("networkidle", timeout=30000)
+                                time.sleep(2)
+                                page_num += 1
+                                siguiente_encontrado = True
+                                break
+                        except:
+                            continue
+                    
+                    if not siguiente_encontrado:
+                        print("\n✅ No hay más páginas")
+                        break
+                except Exception as e:
+                    print(f"\n✅ No hay más páginas (error: {str(e)})")
+                    break
+            
+            # Guardar todos los datos en CSV
+            if all_extracted_data:
+                print(f"\n💾 Guardando {len(all_extracted_data)} registros en CSV...")
+                navigator.save_to_csv(all_extracted_data, "licitaciones.csv")
+                print("✅ Extracción completada")
+            else:
+                print("\n⚠️  No se extrajeron datos")
+                
         else:
             print("⚠️  No se pudo hacer click en el botón Buscar")
             navigator.take_screenshot("04_error_buscar.png")
