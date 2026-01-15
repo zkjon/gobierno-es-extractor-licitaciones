@@ -527,12 +527,19 @@ class ContratacionNavigator:
         
         Args:
             data_list: Lista de diccionarios con los datos a guardar
-            filename: Nombre del archivo CSV
+            filename: Ruta completa del archivo CSV (puede incluir carpeta)
         """
+        import os
+        
         try:
             if not data_list:
                 print_warning("No hay datos para guardar")
                 return
+            
+            # Crear directorio si no existe (por si filename incluye una ruta)
+            directory = os.path.dirname(filename)
+            if directory and not os.path.exists(directory):
+                os.makedirs(directory)
             
             # Determinar las columnas según si hay datos de región o no
             fieldnames = ["url", "valor_estimado", "adjudicatario", "fecha_publicacion", "tipo_documento"]

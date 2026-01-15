@@ -89,9 +89,20 @@ def get_csv_filename(region_nombre: str):
         region_nombre: Nombre de la región
     
     Returns:
-        Nombre del archivo CSV
+        Ruta completa del archivo CSV en la carpeta suministrations/
     """
+    import os
+    
+    # Crear carpeta suministrations si no existe
+    output_dir = "suministrations"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    # Generar nombre del archivo
     if region_nombre.lower() == "todas":
-        return "todas_las_suministraciones.csv"
+        filename = "todas_las_suministraciones.csv"
     else:
-        return f"{region_nombre.lower()}_suministraciones.csv"
+        filename = f"{region_nombre.lower()}_suministraciones.csv"
+    
+    # Devolver ruta completa
+    return os.path.join(output_dir, filename)
