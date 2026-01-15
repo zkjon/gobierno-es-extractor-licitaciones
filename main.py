@@ -591,7 +591,10 @@ class ContratacionNavigator:
                 print("⚠️  No hay datos para guardar")
                 return
             
+            # Determinar las columnas según si hay datos de región o no
             fieldnames = ["url", "valor_estimado", "adjudicatario", "fecha_publicacion", "tipo_documento"]
+            if any("region" in data for data in data_list):
+                fieldnames.insert(1, "region")  # Insertar región después de URL
             
             with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -689,7 +692,8 @@ def select_region_url():
     Muestra un menú interactivo para seleccionar la región y devuelve la URL correspondiente.
     
     Returns:
-        La URL correspondiente a la región seleccionada o None si se cancela
+        Tupla (url, nombre_region) o ("TODAS", "Todas") si se selecciona todas las regiones
+        (None, None) si se cancela
     """
     # URLs correspondientes a cada región
     urls_regiones = {
@@ -699,7 +703,7 @@ def select_region_url():
         },
         '2': {
             'nombre': 'Este',
-            'url': 'https://contrataciondelestado.es/wps/poc?uri=deeplink:perfilContratante&idBp=7QuTKak6qkc%3D'  # URL actual (Este)
+            'url': 'https://contrataciondelestado.es/wps/poc?uri=deeplink:perfilContratante&idBp=7QuTKak6qkc%3D'
         },
         '3': {
             'nombre': 'Oeste',
@@ -708,6 +712,10 @@ def select_region_url():
         '4': {
             'nombre': 'Centro',
             'url': 'https://contrataciondelestado.es/wps/poc?uri=deeplink:perfilContratante&idBp=BxL%2BJUo%2Bqpg%3D'
+        },
+        '5': {
+            'nombre': 'Todas',
+            'url': 'TODAS'  # Indicador especial
         }
     }
     
@@ -726,7 +734,10 @@ def select_region_url():
             if seleccion in urls_regiones:
                 region = urls_regiones[seleccion]
                 print(f"\n✅ Has seleccionado: {region['nombre']}")
-                print(f"📍 URL: {region['url']}\n")
+                if region['url'] != 'TODAS':
+                    print(f"📍 URL: {region['url']}\n")
+                else:
+                    print("📍 Se procesarán todas las regiones\n")
                 return region['url'], region['nombre']
             else:
                 print("❌ Opción no válida. Por favor, selecciona un número del 1 al 5.")
@@ -736,6 +747,219 @@ def select_region_url():
         except Exception as e:
             print(f"❌ Error: {str(e)}")
             return None, None
+
+
+def get_all_regions():
+    """
+    Devuelve todas las regiones disponibles con sus URLs.
+    
+    Returns:
+        Lista de diccionarios con nombre y url de cada región
+    """
+    return [
+        {'nombre': 'Sur', 'url': 'https://contrataciondelestado.es/wps/poc?uri=deeplink:perfilContratante&idBp=IVv54tL29qQ%3D'},
+        {'nombre': 'Este', 'url': 'https://contrataciondelestado.es/wps/poc?uri=deeplink:perfilContratante&idBp=7QuTKak6qkc%3D'},
+        {'nombre': 'Oeste', 'url': 'https://contrataciondelestado.es/wps/poc?uri=deeplink:perfilContratante&idBp=uVw2GiaBY5s%3D'},
+        {'nombre': 'Centro', 'url': 'https://contrataciondelestado.es/wps/poc?uri=deeplink:perfilContratante&idBp=BxL%2BJUo%2Bqpg%3D'},
+    ]
+
+
+def get_csv_filename(region_nombre: str):
+    """
+    Genera el nombre del archivo CSV según la región.
+    
+    Args:
+        region_nombre: Nombre de la región
+    
+    Returns:
+        Nombre del archivo CSV
+    """
+    if region_nombre.lower() == "todas":
+        return "todas_las_suministraciones.csv"
+    else:
+        return f"{region_nombre.lower()}_suministraciones.csv"
+
+
+def process_region(navigator: ContratacionNavigator, url: str, region_nombre: str):
+    """
+    Procesa una región completa: navega, rellena formulario, busca y extrae datos.
+    
+    Args:
+        navigator: Instancia del navegador
+        url: URL de la región a procesar
+        region_nombre: Nombre de la región
+    
+    Returns:
+        Lista de diccionarios con los datos extraídos
+    """
+    print(f"\n{'='*60}")
+    print(f"PROCESANDO REGIÓN: {region_nombre.upper()}")
+    print(f"{'='*60}\n")
+    
+    # Establecer la URL
+    navigator.base_url = url
+    
+    # Navegar a la página inicial
+    if not navigator.navigate_to_page():
+        print(f"❌ No se pudo cargar la página para {region_nombre}")
+        return []
+    
+    # Esperar a que la página cargue completamente
+    navigator.page.wait_for_load_state("networkidle", timeout=30000)
+    time.sleep(2)
+    
+    # PASO 1: Click en la pestaña "Licitaciones"
+    licitaciones_selectors = [
+        "//input[contains(@id, 'linkPrepLic')]",
+        "//input[contains(@name, 'linkPrepLic')]",
+        "//input[@type='submit' and @value='Licitaciones']",
+        "//input[@title='Licitaciones']",
+    ]
+    
+    if not navigator.click_element_multiple_selectors(
+        licitaciones_selectors,
+        "Pestaña Licitaciones",
+        timeout=20000
+    ):
+        print(f"⚠️  No se pudo encontrar la pestaña Licitaciones para {region_nombre}")
+        return []
+    
+    # Esperar a que cargue
+    navigator.page.wait_for_load_state("networkidle", timeout=30000)
+    time.sleep(3)
+    
+    # PASO 2: Rellenar campos del formulario
+    print("\n🔄 Rellenando formulario...")
+    
+    # Tipo de contrato = "Suministros"
+    tipo_contrato_selectors = [
+        "//select[contains(@name, 'busReasProc07')]",
+        "//select[contains(@id, 'busReasProc07')]",
+        "//select[@title='Tipo de contrato']",
+    ]
+    navigator.select_option_multiple_selectors(
+        tipo_contrato_selectors,
+        "1",
+        "Tipo de contrato",
+        timeout=8000
+    )
+    time.sleep(0.3)
+    
+    # Estado = "Resuelta"
+    estado_selectors = [
+        "//select[contains(@name, 'busReasProc11')]",
+        "//select[contains(@id, 'busReasProc11')]",
+        "//select[@title='Estado']",
+    ]
+    navigator.select_option_multiple_selectors(
+        estado_selectors,
+        "RES",
+        "Estado",
+        timeout=8000
+    )
+    time.sleep(0.3)
+    
+    # Objeto del contrato = "alimentación"
+    objeto_selectors = [
+        "//textarea[contains(@name, 'busReasProc17')]",
+        "//textarea[contains(@id, 'busReasProc17')]",
+        "//textarea[@title='Objeto del contrato']",
+    ]
+    navigator.fill_input_multiple_selectors(
+        objeto_selectors,
+        "alimentación",
+        "Objeto del contrato",
+        timeout=8000
+    )
+    
+    # PASO 3: Click en el botón "Buscar"
+    buscar_selectors = [
+        "//input[contains(@id, 'busReasProc18')]",
+        "//input[contains(@name, 'busReasProc18')]",
+        "//input[@type='submit' and @value='Buscar']",
+    ]
+    
+    if not navigator.click_element_multiple_selectors(
+        buscar_selectors,
+        "Botón Buscar",
+        timeout=10000
+    ):
+        print(f"⚠️  No se pudo hacer click en Buscar para {region_nombre}")
+        return []
+    
+    navigator.page.wait_for_load_state("networkidle", timeout=30000)
+    time.sleep(2)
+    
+    # PASO 4: Extraer datos de todos los enlaces
+    all_extracted_data = []
+    page_num = 1
+    
+    while True:
+        links = navigator.get_result_links()
+        
+        if not links:
+            break
+        
+        print(f"\n📄 Página {page_num}: {len(links)} enlaces")
+        
+        for i, link in enumerate(links, 1):
+            print(f"  [{i}/{len(links)}] Procesando...", end=" ")
+            
+            try:
+                original_page = navigator.page
+                new_page = navigator.context.new_page()
+                navigator.page = new_page
+                new_page.goto(link, wait_until="networkidle", timeout=30000)
+                time.sleep(1)
+                
+                data = navigator.extract_detail_data()
+                data["url"] = link
+                data["region"] = region_nombre  # Agregar región a los datos
+                all_extracted_data.append(data)
+                
+                new_page.close()
+                navigator.page = original_page
+                time.sleep(0.3)
+                print("✅")
+                
+            except Exception as e:
+                print(f"❌ Error: {str(e)[:50]}")
+                try:
+                    new_page.close()
+                    navigator.page = original_page
+                except:
+                    pass
+                continue
+        
+        # Verificar siguiente página
+        try:
+            siguiente_selectors = [
+                "//input[@id='viewns_Z7_AVEQAI930GRPE02BR764FO30G0_:form1:siguienteLink']",
+                "//input[@name='viewns_Z7_AVEQAI930GRPE02BR764FO30G0_:form1:siguienteLink']",
+                "//input[@type='submit' and contains(@value, 'Siguiente')]",
+            ]
+            
+            siguiente_encontrado = False
+            for selector in siguiente_selectors:
+                try:
+                    siguiente_button = navigator.page.locator(selector).first
+                    if siguiente_button.is_visible(timeout=2000) and siguiente_button.is_enabled():
+                        siguiente_button.click()
+                        navigator.page.wait_for_load_state("networkidle", timeout=30000)
+                        time.sleep(2)
+                        page_num += 1
+                        siguiente_encontrado = True
+                        break
+                except:
+                    continue
+            
+            if not siguiente_encontrado:
+                break
+        except:
+            break
+    
+    print(f"\n✅ {region_nombre}: {len(all_extracted_data)} registros extraídos")
+    return all_extracted_data
 
 
 def main():
@@ -752,301 +976,45 @@ def main():
         return
     
     # Crear instancia del navegador
-    # headless=False para ver el navegador, slow_mo=500 para ver las acciones más despacio
     navigator = ContratacionNavigator(headless=False, slow_mo=500)
-    
-    # Establecer la URL seleccionada
-    navigator.base_url = url_seleccionada
     
     try:
         # Iniciar navegador
         navigator.start()
         
-        # Navegar a la página inicial (con la URL seleccionada)
-        if not navigator.navigate_to_page():
-            print("❌ No se pudo cargar la página inicial")
-            return
-        
-        # Tomar captura inicial
-        navigator.take_screenshot("01_pagina_inicial.png")
-        
-        # ============================================
-        # AQUÍ EMPIEZAN LOS CLICKS PASO A PASO
-        # ============================================
-        
-        print("\n" + "="*50)
-        print("INICIANDO NAVEGACIÓN CLICK POR CLICK")
-        print("="*50 + "\n")
-        
-        # Esperar a que la página cargue completamente
-        navigator.page.wait_for_load_state("networkidle", timeout=30000)
-        time.sleep(2)
-        
-        # Tomar captura de la página inicial (ya estamos en el perfil del contratante)
-        navigator.take_screenshot("01_pagina_perfil_contratante.png")
-        
-        # PASO 1: Click en la pestaña "Licitaciones"
-        licitaciones_selectors = [
-            "//input[contains(@id, 'linkPrepLic')]",
-            "//input[contains(@name, 'linkPrepLic')]",
-            "//input[@type='submit' and @value='Licitaciones']",
-            "//input[@title='Licitaciones']",
-            "//input[contains(@id, 'linkPrepLic') or contains(@name, 'linkPrepLic')]",
-            "//a[contains(text(), 'Licitaciones')]",
-            "//button[contains(text(), 'Licitaciones')]",
-            "//*[contains(@class, 'tab') and contains(., 'Licitaciones')]",
-            "//*[contains(text(), 'Licitaciones') and (self::a or self::button or self::div)]",
-            "text=Licitaciones",
-            "//li[contains(., 'Licitaciones')]//a",
-            "//nav//a[contains(., 'Licitaciones')]",
-        ]
-        
-        if not navigator.click_element_multiple_selectors(
-            licitaciones_selectors,
-            "Pestaña Licitaciones",
-            timeout=20000
-        ):
-            print("⚠️  No se pudo encontrar la pestaña Licitaciones. Tomando captura para debug...")
-            navigator.take_screenshot("02_error_licitaciones.png")
-            print("❌ No se puede continuar sin hacer click en Licitaciones")
-            return
-        
-        # Esperar a que la nueva página/sección cargue
-        print("⏳ Esperando a que cargue la sección de Licitaciones...")
-        navigator.page.wait_for_load_state("networkidle", timeout=30000)
-        time.sleep(3)  # Dar más tiempo para que aparezca el formulario
-        
-        # Tomar captura después del click en Licitaciones
-        navigator.take_screenshot("02_despues_licitaciones.png")
-        
-        # PASO 2: Rellenar campos del formulario de búsqueda
-        print("\n" + "-"*50)
-        print("RELLENANDO CAMPOS DEL FORMULARIO")
-        print("-"*50 + "\n")
-        
-        # Verificar que el formulario esté presente antes de intentar rellenarlo
-        print("🔍 Verificando que el formulario esté presente...")
-        formulario_encontrado = False
-        formulario_selectors = [
-            "//form",
-            "//form[contains(., 'Búsqueda')]",
-            "//form[contains(., 'procedimiento')]",
-            "//*[contains(@class, 'form')]",
-            "//*[contains(@id, 'form')]",
-        ]
-        
-        for selector in formulario_selectors:
-            try:
-                element = navigator.page.locator(selector).first
-                if element.is_visible(timeout=3000):
-                    print(f"✅ Formulario encontrado con selector: {selector[:50]}...")
-                    formulario_encontrado = True
-                    break
-            except:
-                continue
-        
-        if not formulario_encontrado:
-            print("⚠️  No se encontró el formulario. Tomando captura para debug...")
-            navigator.take_screenshot("02_error_formulario_no_encontrado.png")
-            print("⚠️  Listando elementos disponibles para debug...")
-            navigator.debug_list_form_elements()
-            print("⚠️  Continuando de todas formas...")
-        
-        # Esperar un poco para asegurar que los campos estén listos
-        time.sleep(1)
-        
-        # Campo 1: Tipo de contrato = "Suministros" (valor="1")
-        print("\n🔄 Rellenando: Tipo de contrato = 'Suministros'")
-        tipo_contrato_selectors = [
-            "//select[contains(@name, 'busReasProc07')]",
-            "//select[contains(@id, 'busReasProc07')]",
-            "//select[@title='Tipo de contrato']",
-        ]
-        navigator.select_option_multiple_selectors(
-            tipo_contrato_selectors,
-            "1",  # Valor para Suministros según el HTML
-            "Tipo de contrato",
-            timeout=8000
-        )
-        
-        time.sleep(0.3)  # Pausa breve entre campos
-        
-        # Campo 2: Estado = "Resuelta" (valor="RES")
-        print("\n🔄 Rellenando: Estado = 'Resuelta'")
-        estado_selectors = [
-            "//select[contains(@name, 'busReasProc11')]",
-            "//select[contains(@id, 'busReasProc11')]",
-            "//select[@title='Estado']",
-        ]
-        navigator.select_option_multiple_selectors(
-            estado_selectors,
-            "RES",  # Valor para Resuelta según el HTML
-            "Estado",
-            timeout=8000
-        )
-        
-        time.sleep(0.3)  # Pausa breve entre campos
-        
-        # Campo 3: Objeto del contrato = "alimentación"
-        print("\n🔄 Rellenando: Objeto del contrato = 'alimentación'")
-        objeto_selectors = [
-            "//textarea[contains(@name, 'busReasProc17')]",
-            "//textarea[contains(@id, 'busReasProc17')]",
-            "//textarea[@title='Objeto del contrato']",
-        ]
-        navigator.fill_input_multiple_selectors(
-            objeto_selectors,
-            "alimentación",
-            "Objeto del contrato",
-            timeout=8000
-        )
-        
-        # Tomar captura después de rellenar los campos
-        navigator.take_screenshot("03_formulario_rellenado.png")
-        
-        print("\n✅ Campos del formulario rellenados\n")
-        
-        # PASO 3: Click en el botón "Buscar"
-        print("\n🔄 Haciendo click en el botón 'Buscar'...")
-        buscar_selectors = [
-            "//input[contains(@id, 'busReasProc18')]",
-            "//input[contains(@name, 'busReasProc18')]",
-            "//input[@type='submit' and @value='Buscar']",
-            "//input[@title='Buscar']",
-            "//input[@value='Buscar' and @type='submit']",
-        ]
-        
-        if navigator.click_element_multiple_selectors(
-            buscar_selectors,
-            "Botón Buscar",
-            timeout=10000
-        ):
-            # Esperar a que se procese la búsqueda
-            print("⏳ Esperando a que se procesen los resultados de búsqueda...")
-            navigator.page.wait_for_load_state("networkidle", timeout=30000)
-            time.sleep(2)
+        # Determinar qué regiones procesar
+        if url_seleccionada == "TODAS":
+            # Procesar todas las regiones
+            todas_las_regiones = get_all_regions()
+            all_combined_data = []
             
-            # Tomar captura después de la búsqueda
-            navigator.take_screenshot("04_resultados_busqueda.png")
-            print("✅ Búsqueda completada")
+            for region in todas_las_regiones:
+                data_region = process_region(navigator, region['url'], region['nombre'])
+                all_combined_data.extend(data_region)
+                time.sleep(1)  # Pausa entre regiones
             
-            # PASO 4: Extraer datos de cada enlace de los resultados
-            print("\n" + "="*50)
-            print("EXTRAYENDO DATOS DE LOS RESULTADOS")
-            print("="*50 + "\n")
+            # Guardar todos los datos combinados
+            if all_combined_data:
+                filename = get_csv_filename("Todas")
+                navigator.save_to_csv(all_combined_data, filename)
+                print(f"\n✅ Proceso completado: {len(all_combined_data)} registros de todas las regiones")
+            else:
+                print("\n⚠️  No se extrajeron datos de ninguna región")
+        else:
+            # Procesar una sola región
+            all_extracted_data = process_region(navigator, url_seleccionada, region_nombre)
             
-            all_extracted_data = []
-            page_num = 1
-            
-            while True:
-                # Obtener todos los enlaces de la página actual
-                links = navigator.get_result_links()
-                
-                if not links:
-                    print("⚠️  No se encontraron enlaces en esta página")
-                    break
-                
-                print(f"\n📄 Procesando página {page_num} con {len(links)} enlaces...")
-                
-                # Procesar cada enlace
-                for i, link in enumerate(links, 1):
-                    print(f"\n[{i}/{len(links)}] Procesando enlace: {link[:80]}...")
-                    
-                    try:
-                        # Guardar la página actual
-                        original_page = navigator.page
-                        
-                        # Abrir el enlace en una nueva pestaña
-                        new_page = navigator.context.new_page()
-                        navigator.page = new_page
-                        new_page.goto(link, wait_until="networkidle", timeout=30000)
-                        time.sleep(2)
-                        
-                        # Extraer datos
-                        data = navigator.extract_detail_data()
-                        
-                        # Agregar URL del enlace a los datos
-                        data["url"] = link
-                        all_extracted_data.append(data)
-                        
-                        print(f"   ✅ Datos extraídos:")
-                        print(f"      - Valor estimado: {data['valor_estimado']}")
-                        print(f"      - Adjudicatario: {data['adjudicatario']}")
-                        print(f"      - Fecha publicación: {data['fecha_publicacion']}")
-                        print(f"      - Tipo documento: {data['tipo_documento']}")
-                        
-                        # Cerrar la pestaña y restaurar la página original
-                        new_page.close()
-                        navigator.page = original_page
-                        time.sleep(0.5)
-                        
-                    except Exception as e:
-                        print(f"   ❌ Error procesando enlace: {str(e)}")
-                        try:
-                            new_page.close()
-                            navigator.page = original_page
-                        except:
-                            pass
-                        continue
-                
-                # Verificar si hay siguiente página
-                try:
-                    # Buscar el botón "Siguiente >>" que es un input submit
-                    siguiente_selectors = [
-                        "//input[@id='viewns_Z7_AVEQAI930GRPE02BR764FO30G0_:form1:siguienteLink']",
-                        "//input[@name='viewns_Z7_AVEQAI930GRPE02BR764FO30G0_:form1:siguienteLink']",
-                        "//input[@type='submit' and contains(@value, 'Siguiente')]",
-                        "//input[contains(@value, 'Siguiente') and @type='submit']",
-                    ]
-                    
-                    siguiente_encontrado = False
-                    for selector in siguiente_selectors:
-                        try:
-                            siguiente_button = navigator.page.locator(selector).first
-                            if siguiente_button.is_visible(timeout=2000) and siguiente_button.is_enabled():
-                                print(f"\n➡️  Navegando a la página {page_num + 1}...")
-                                siguiente_button.click()
-                                navigator.page.wait_for_load_state("networkidle", timeout=30000)
-                                time.sleep(2)
-                                page_num += 1
-                                siguiente_encontrado = True
-                                break
-                        except:
-                            continue
-                    
-                    if not siguiente_encontrado:
-                        print("\n✅ No hay más páginas")
-                        break
-                except Exception as e:
-                    print(f"\n✅ No hay más páginas (error: {str(e)})")
-                    break
-            
-            # Guardar todos los datos en CSV
+            # Guardar datos en CSV con nombre según la región
             if all_extracted_data:
-                print(f"\n💾 Guardando {len(all_extracted_data)} registros en CSV...")
-                navigator.save_to_csv(all_extracted_data, "licitaciones.csv")
-                print("✅ Extracción completada")
+                filename = get_csv_filename(region_nombre)
+                navigator.save_to_csv(all_extracted_data, filename)
+                print(f"\n✅ Proceso completado: {len(all_extracted_data)} registros")
             else:
                 print("\n⚠️  No se extrajeron datos")
-                
-        else:
-            print("⚠️  No se pudo hacer click en el botón Buscar")
-            navigator.take_screenshot("04_error_buscar.png")
-        
-        # Continúa agregando pasos según necesites...
         
         print("\n" + "="*50)
         print("NAVEGACIÓN COMPLETADA")
         print("="*50 + "\n")
-        
-        # Guardar datos extraídos
-        if navigator.extracted_data:
-            navigator.save_data()
-        
-        # Tomar captura final
-        navigator.take_screenshot("02_pagina_final.png")
-        
-        print("\n✅ Proceso completado exitosamente")
         
     except KeyboardInterrupt:
         print("\n⚠️  Proceso interrumpido por el usuario")
