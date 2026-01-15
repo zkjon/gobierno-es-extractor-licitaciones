@@ -681,134 +681,54 @@ def main():
             navigator.debug_list_form_elements()
             print("⚠️  Continuando de todas formas...")
         
-        # Esperar un poco más para asegurar que los campos estén listos
-        time.sleep(3)
+        # Esperar un poco para asegurar que los campos estén listos
+        time.sleep(1)
         
         # Campo 1: Tipo de contrato = "Suministros" (valor="1")
-        print("\n🔄 Intentando rellenar: Tipo de contrato = 'Suministros' (value='1')")
+        print("\n🔄 Rellenando: Tipo de contrato = 'Suministros'")
         tipo_contrato_selectors = [
             "//select[contains(@name, 'busReasProc07')]",
             "//select[contains(@id, 'busReasProc07')]",
-            "//label[contains(text(), 'Tipo de contrato')]/following-sibling::select[1]",
-            "//label[contains(text(), 'Tipo de contrato')]/../select",
-            "//label[contains(text(), 'Tipo de contrato')]/following::select[1]",
             "//select[@title='Tipo de contrato']",
         ]
-        if not navigator.select_option_multiple_selectors(
+        navigator.select_option_multiple_selectors(
             tipo_contrato_selectors,
             "1",  # Valor para Suministros según el HTML
             "Tipo de contrato",
-            timeout=15000
-        ):
-            # Intentar también con el texto "Suministros" por si acaso
-            print("   Intentando con texto 'Suministros'...")
-            navigator.select_option_multiple_selectors(
-                tipo_contrato_selectors,
-                "Suministros",
-                "Tipo de contrato",
-                timeout=10000
-            )
+            timeout=8000
+        )
         
-        time.sleep(1)  # Pausa entre campos
+        time.sleep(0.3)  # Pausa breve entre campos
         
         # Campo 2: Estado = "Resuelta" (valor="RES")
-        print("\n🔄 Intentando rellenar: Estado = 'Resuelta' (value='RES')")
+        print("\n🔄 Rellenando: Estado = 'Resuelta'")
         estado_selectors = [
             "//select[contains(@name, 'busReasProc11')]",
             "//select[contains(@id, 'busReasProc11')]",
-            "//label[contains(text(), 'Estado')]/following-sibling::select[1]",
-            "//label[contains(text(), 'Estado')]/../select",
-            "//label[contains(text(), 'Estado')]/following::select[1]",
             "//select[@title='Estado']",
         ]
-        if not navigator.select_option_multiple_selectors(
+        navigator.select_option_multiple_selectors(
             estado_selectors,
             "RES",  # Valor para Resuelta según el HTML
             "Estado",
-            timeout=15000
-        ):
-            # Intentar también con el texto "Resuelta" por si acaso
-            print("   Intentando con texto 'Resuelta'...")
-            navigator.select_option_multiple_selectors(
-                estado_selectors,
-                "Resuelta",
-                "Estado",
-                timeout=10000
-            )
+            timeout=8000
+        )
         
-        time.sleep(1)  # Pausa entre campos
+        time.sleep(0.3)  # Pausa breve entre campos
         
-        # Campo 3: Sistema de contratación = "Todos" (valor="00")
-        print("\n🔄 Intentando rellenar: Sistema de contratación = 'Todos' (value='00')")
-        sistema_selectors = [
-            "//select[contains(@name, 'busReasProcSis2')]",
-            "//select[contains(@id, 'busReasProcSis2')]",
-            "//label[contains(text(), 'Sistema de contratación')]/following-sibling::select[1]",
-            "//label[contains(text(), 'Sistema de contratación')]/../select",
-            "//label[contains(text(), 'Sistema de contratación')]/following::select[1]",
-            "//select[@title='Sistema de contratación']",
-        ]
-        if not navigator.select_option_multiple_selectors(
-            sistema_selectors,
-            "00",  # Valor para Todos según el HTML
-            "Sistema de contratación",
-            timeout=15000
-        ):
-            # Intentar también con el texto "Todos" por si acaso
-            print("   Intentando con texto 'Todos'...")
-            navigator.select_option_multiple_selectors(
-                sistema_selectors,
-                "Todos",
-                "Sistema de contratación",
-                timeout=10000
-            )
-        
-        time.sleep(1)  # Pausa entre campos
-        
-        # Campo 4: Procedimiento = "Todos" (valor="01")
-        print("\n🔄 Intentando rellenar: Procedimiento = 'Todos' (value='01')")
-        procedimiento_selectors = [
-            "//select[contains(@name, 'busReasProc82')]",
-            "//select[contains(@id, 'busReasProc82')]",
-            "//label[contains(text(), 'Procedimiento')]/following-sibling::select[1]",
-            "//label[contains(text(), 'Procedimiento')]/../select",
-            "//label[contains(text(), 'Procedimiento')]/following::select[1]",
-            "//select[@title='Procedimiento']",
-        ]
-        if not navigator.select_option_multiple_selectors(
-            procedimiento_selectors,
-            "01",  # Valor para Todos según el HTML
-            "Procedimiento",
-            timeout=15000
-        ):
-            # Intentar también con el texto "Todos" por si acaso
-            print("   Intentando con texto 'Todos'...")
-            navigator.select_option_multiple_selectors(
-                procedimiento_selectors,
-                "Todos",
-                "Procedimiento",
-                timeout=10000
-            )
-        
-        time.sleep(1)  # Pausa entre campos
-        
-        # Campo 5: Objeto del contrato = "Suministros de alimentación"
-        print("\n🔄 Intentando rellenar: Objeto del contrato = 'Suministros de alimentación'")
+        # Campo 3: Objeto del contrato = "alimentación"
+        print("\n🔄 Rellenando: Objeto del contrato = 'alimentación'")
         objeto_selectors = [
             "//textarea[contains(@name, 'busReasProc17')]",
             "//textarea[contains(@id, 'busReasProc17')]",
-            "//label[contains(text(), 'Objeto del contrato')]/following-sibling::textarea[1]",
-            "//label[contains(text(), 'Objeto del contrato')]/../textarea",
-            "//label[contains(text(), 'Objeto del contrato')]/following::textarea[1]",
             "//textarea[@title='Objeto del contrato']",
         ]
-        if not navigator.fill_input_multiple_selectors(
+        navigator.fill_input_multiple_selectors(
             objeto_selectors,
-            "Suministros de alimentación",
+            "alimentación",
             "Objeto del contrato",
-            timeout=15000
-        ):
-            print("⚠️  No se pudo rellenar 'Objeto del contrato'. Continuando...")
+            timeout=8000
+        )
         
         # Tomar captura después de rellenar los campos
         navigator.take_screenshot("03_formulario_rellenado.png")
