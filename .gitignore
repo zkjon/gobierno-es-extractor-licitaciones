@@ -32,6 +32,10 @@ extracted_data.json
 *.jpg
 *.jpeg
 
+# Logs
+logs/
+*.log
+
 # IDE
 .vscode/
 .idea/

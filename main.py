@@ -7,8 +7,68 @@ from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeo
 import time
 import csv
 import json
+import os
+import sys
 from typing import Dict, Optional, List
 from datetime import datetime
+
+
+class Tee:
+    """
+    Clase para redirigir la salida tanto a la consola como a un archivo.
+    """
+    def __init__(self, *files):
+        self.files = files
+    
+    def write(self, obj):
+        for f in self.files:
+            f.write(obj)
+            f.flush()
+    
+    def flush(self):
+        for f in self.files:
+            f.flush()
+
+
+def setup_logging():
+    """
+    Configura el sistema de logging creando la carpeta logs y redirigiendo la salida.
+    
+    Returns:
+        Tupla (log_file, original_stdout) para poder restaurar al finalizar
+    """
+    # Crear carpeta logs si no existe
+    logs_dir = "logs"
+    if not os.path.exists(logs_dir):
+        os.makedirs(logs_dir)
+    
+    # Generar nombre del archivo con formato: log_YYYY-MM-DD_HH-MM-SS.txt
+    timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    log_filename = os.path.join(logs_dir, f"log_{timestamp}.txt")
+    
+    # Abrir archivo de log
+    log_file = open(log_filename, 'w', encoding='utf-8')
+    
+    # Guardar stdout original
+    original_stdout = sys.stdout
+    
+    # Redirigir stdout a consola y archivo
+    sys.stdout = Tee(sys.stdout, log_file)
+    
+    return log_file, original_stdout, log_filename
+
+
+def restore_logging(log_file, original_stdout):
+    """
+    Restaura la salida original y cierra el archivo de log.
+    
+    Args:
+        log_file: Archivo de log abierto
+        original_stdout: stdout original
+    """
+    sys.stdout = original_stdout
+    if log_file:
+        log_file.close()
 
 
 def print_header(text: str):
@@ -972,23 +1032,28 @@ def process_region(navigator: ContratacionNavigator, url: str, region_nombre: st
 def main():
     """Función principal para ejecutar la navegación paso a paso."""
     
-    # Guardar tiempo de inicio
-    start_time = datetime.now()
-    
-    print_header("EXTRACTOR DE LICITACIONES - CONTRATACIÓN DEL ESTADO")
-    print_info(f"Inicio: {start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-    
-    # PASO 0: Seleccionar región y URL al inicio
-    url_seleccionada, region_nombre = select_region_url()
-    
-    if not url_seleccionada:
-        print_error("No se seleccionó ninguna región. Saliendo...")
-        return
-    
-    # Crear instancia del navegador
-    navigator = ContratacionNavigator(headless=False, slow_mo=500)
+    # Configurar logging
+    log_file, original_stdout, log_filename = setup_logging()
+    navigator = None
     
     try:
+        # Guardar tiempo de inicio
+        start_time = datetime.now()
+        
+        print_header("EXTRACTOR DE LICITACIONES - CONTRATACIÓN DEL ESTADO")
+        print_info(f"Inicio: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        print_info(f"Log guardado en: {log_filename}\n")
+        
+        # PASO 0: Seleccionar región y URL al inicio
+        url_seleccionada, region_nombre = select_region_url()
+        
+        if not url_seleccionada:
+            print_error("No se seleccionó ninguna región. Saliendo...")
+            return
+        
+        # Crear instancia del navegador
+        navigator = ContratacionNavigator(headless=False, slow_mo=500)
+        
         # Iniciar navegador
         navigator.start()
         
@@ -1049,9 +1114,15 @@ def main():
         import traceback
         traceback.print_exc()
     finally:
-        print("\n" + "─"*70)
-        print_success("Cerrando navegador...")
-        navigator.close()
+        if navigator:
+            print("\n" + "─"*70)
+            print_success("Cerrando navegador...")
+            navigator.close()
+        # Mostrar mensaje final antes de restaurar logging
+        if log_file:
+            print_info(f"Log guardado en: {log_filename}")
+        # Restaurar logging y cerrar archivo
+        restore_logging(log_file, original_stdout)
 
 
 if __name__ == "__main__":
