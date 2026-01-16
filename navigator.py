@@ -547,7 +547,7 @@ class ContratacionNavigator:
                 fieldnames.insert(1, "region")
             
             with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter=';')
                 writer.writeheader()
                 writer.writerows(data_list)
             
