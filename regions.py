@@ -81,15 +81,16 @@ def get_all_regions():
     ]
 
 
-def get_csv_filename(region_nombre: str):
+def get_csv_filename(region_nombre: str, palabra_clave: str):
     """
-    Genera el nombre del archivo CSV según la región con timestamp.
+    Genera el nombre del archivo CSV según la región y palabra clave con timestamp.
     
     Args:
         region_nombre: Nombre de la región
+        palabra_clave: Palabra clave usada para filtrar las búsquedas
     
     Returns:
-        Ruta completa del archivo CSV en formato: suministrations/[region]/[region]_YYYY-MM-DD_HH-MM-SS.csv
+        Ruta completa del archivo CSV en formato: suministrations/[region]/[palabra_clave]/export_YYYY-MM-DD_HH-MM-SS.csv
     """
     import os
     from datetime import datetime
@@ -99,8 +100,13 @@ def get_csv_filename(region_nombre: str):
     if region_folder == "todas":
         region_folder = "todas"
     
-    # Crear estructura de carpetas: suministrations/[region]/
-    output_dir = os.path.join("suministrations", region_folder)
+    # Normalizar palabra clave para la carpeta (eliminar caracteres especiales)
+    palabra_clave_folder = palabra_clave.lower().strip()
+    # Reemplazar espacios y caracteres no válidos para nombres de carpeta
+    palabra_clave_folder = "".join(c if c.isalnum() or c in ('-', '_') else '_' for c in palabra_clave_folder)
+    
+    # Crear estructura de carpetas: suministrations/[region]/[palabra_clave]/
+    output_dir = os.path.join("suministrations", region_folder, palabra_clave_folder)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     

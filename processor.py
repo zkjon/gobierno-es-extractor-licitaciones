@@ -12,7 +12,7 @@ from utils.printing import (
 )
 
 
-def process_region(navigator: ContratacionNavigator, url: str, region_nombre: str):
+def process_region(navigator: ContratacionNavigator, url: str, region_nombre: str, palabra_clave: str):
     """
     Procesa una región completa: navega, rellena formulario, busca y extrae datos.
     
@@ -20,6 +20,7 @@ def process_region(navigator: ContratacionNavigator, url: str, region_nombre: st
         navigator: Instancia del navegador
         url: URL de la región a procesar
         region_nombre: Nombre de la región
+        palabra_clave: Palabra clave para filtrar las búsquedas
     
     Returns:
         Lista de diccionarios con los datos extraídos
@@ -55,35 +56,9 @@ def process_region(navigator: ContratacionNavigator, url: str, region_nombre: st
     navigator.page.wait_for_load_state("networkidle", timeout=30000)
     time.sleep(2)
     
-    # PASO 2: Rellenar campos del formulario
+    # PASO 2: Rellenar campo de búsqueda con palabra clave
     print_step(3, 4, "Rellenando formulario de búsqueda")
-    print_info("Configurando filtros: Tipo=Suministros, Estado=Resuelta, Objeto=alimentación")
-    
-    tipo_contrato_selectors = [
-        "//select[contains(@name, 'busReasProc07')]",
-        "//select[contains(@id, 'busReasProc07')]",
-        "//select[@title='Tipo de contrato']",
-    ]
-    navigator.select_option_multiple_selectors(
-        tipo_contrato_selectors,
-        "1",
-        "Tipo de contrato",
-        timeout=8000
-    )
-    time.sleep(0.2)
-    
-    estado_selectors = [
-        "//select[contains(@name, 'busReasProc11')]",
-        "//select[contains(@id, 'busReasProc11')]",
-        "//select[@title='Estado']",
-    ]
-    navigator.select_option_multiple_selectors(
-        estado_selectors,
-        "RES",
-        "Estado",
-        timeout=8000
-    )
-    time.sleep(0.2)
+    print_info(f"Configurando filtro: Objeto={palabra_clave}")
     
     objeto_selectors = [
         "//textarea[contains(@name, 'busReasProc17')]",
@@ -92,7 +67,7 @@ def process_region(navigator: ContratacionNavigator, url: str, region_nombre: st
     ]
     navigator.fill_input_multiple_selectors(
         objeto_selectors,
-        "alimentación",
+        palabra_clave,
         "Objeto del contrato",
         timeout=8000
     )

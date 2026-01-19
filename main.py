@@ -43,6 +43,17 @@ def main():
             print_error("No se seleccionó ninguna región. Saliendo...")
             return
         
+        # PASO 0.5: Solicitar palabra clave para filtrar
+        print_header("CONFIGURACIÓN DE BÚSQUEDA")
+        palabra_clave = input("Ingrese la palabra clave para filtrar las búsquedas: ").strip()
+        
+        if not palabra_clave:
+            print_warning("No se ingresó palabra clave. Usando 'carne' por defecto.")
+            palabra_clave = "carne"
+        else:
+            print_info(f"Palabra clave configurada: '{palabra_clave}'")
+        print()
+        
         # Crear instancia del navegador
         navigator = ContratacionNavigator(headless=False, slow_mo=500)
         
@@ -61,7 +72,7 @@ def main():
                 print_info(f"Región {idx}/{len(todas_las_regiones)}: {region['nombre']}")
                 print(f"{'─'*70}")
                 
-                data_region = process_region(navigator, region['url'], region['nombre'])
+                data_region = process_region(navigator, region['url'], region['nombre'], palabra_clave)
                 all_combined_data.extend(data_region)
                 regiones_procesadas += 1
                 
@@ -71,7 +82,7 @@ def main():
             
             # Guardar todos los datos combinados
             if all_combined_data:
-                filename = get_csv_filename("Todas")
+                filename = get_csv_filename("Todas", palabra_clave)
                 navigator.save_to_csv(all_combined_data, filename)
                 print_header("PROCESO COMPLETADO")
                 print_success(f"Total: {len(all_combined_data)} registros de {regiones_procesadas} región(es)")
@@ -80,11 +91,11 @@ def main():
                 print_warning("No se extrajeron datos de ninguna región")
         else:
             # Procesar una sola región
-            all_extracted_data = process_region(navigator, url_seleccionada, region_nombre)
+            all_extracted_data = process_region(navigator, url_seleccionada, region_nombre, palabra_clave)
             
             # Guardar datos en CSV con nombre según la región
             if all_extracted_data:
-                filename = get_csv_filename(region_nombre)
+                filename = get_csv_filename(region_nombre, palabra_clave)
                 navigator.save_to_csv(all_extracted_data, filename)
                 print_header("PROCESO COMPLETADO")
                 print_success(f"Total: {len(all_extracted_data)} registros extraídos")
