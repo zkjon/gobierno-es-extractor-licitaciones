@@ -36,9 +36,9 @@ def setup_logging():
     if not os.path.exists(logs_dir):
         os.makedirs(logs_dir)
     
-    # Generar nombre del archivo con formato: log_YYYY-MM-DD_HH-MM-SS.txt
+    # Generar nombre del archivo con formato: log_YYYY-MM-DD_HH-MM-SS.log
     timestamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
-    log_filename = os.path.join(logs_dir, f"log_{timestamp}.txt")
+    log_filename = os.path.join(logs_dir, f"log_{timestamp}.log")
     
     # Abrir archivo de log
     log_file = open(log_filename, 'w', encoding='utf-8')
