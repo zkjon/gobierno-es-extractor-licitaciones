@@ -293,7 +293,7 @@ Las dependencias se encuentran en `requirements.txt`:
 
 ## 📝 Licencia
 
-Este proyecto es de código abierto. Úsalo y modifícalo según tus necesidades.
+Este proyecto está licenciado bajo la [MIT License](LICENSE). Úsalo y modifícalo según tus necesidades.
 
 ## 🤝 Contribuciones
 
