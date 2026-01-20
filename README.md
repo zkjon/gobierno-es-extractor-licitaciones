@@ -1,24 +1,25 @@
-# Extractor de Suministraciones Alimentarias - Ministerio de Defensa
+# Extractor de Licitaciones - Ministerio de Defensa
 
-Aplicación automatizada para extraer información de licitaciones de suministros de alimentación desde los perfiles de contratante del **Ministerio de Defensa - Ejército de Tierra** en la plataforma oficial de contratación del estado español (contrataciondelestado.es).
+Aplicación automatizada para extraer información de licitaciones desde los perfiles de contratante del **Ministerio de Defensa - Ejército de Tierra** en la plataforma oficial de contratación del estado español (contrataciondelestado.es). Permite buscar licitaciones usando cualquier palabra clave personalizada.
 
 ## 📋 Descripción
 
-Esta herramienta automatiza la extracción de datos de licitaciones públicas de suministros de alimentación. La aplicación:
+Esta herramienta automatiza la extracción de datos de licitaciones públicas desde los perfiles de contratante del Ejército de Tierra. La aplicación:
 
 - Navega automáticamente por la plataforma de contratación del estado
 - Accede a los perfiles de contratante de 4 regiones del Ejército de Tierra (Sur, Este, Oeste, Centro)
+- Permite ingresar una palabra clave personalizada por consola para filtrar las búsquedas
 - Rellena automáticamente formularios de búsqueda con filtros específicos:
   - Tipo de contrato: **Suministros**
   - Estado: **Resuelta**
-  - Objeto: **alimentación**
+  - Objeto: **[palabra clave ingresada por el usuario]**
 - Extrae información de cada licitación encontrada
 - Guarda los resultados en archivos CSV organizados por región con timestamps
 
 ## 🎯 Funcionalidades
 
 - ✅ **Navegación automatizada**: Usa Playwright para simular interacciones del usuario
-- ✅ **Búsqueda filtrada**: Busca automáticamente licitaciones de suministros de alimentación resueltas
+- ✅ **Búsqueda filtrada**: Busca automáticamente licitaciones de suministros resueltas usando una palabra clave personalizable
 - ✅ **Extracción de datos**: Obtiene información detallada de cada licitación
 - ✅ **Múltiples regiones**: Procesa una región específica o todas las regiones disponibles
 - ✅ **Organización de archivos**: Guarda resultados en `suministrations/[region]/export_YYYY-MM-DD_HH-MM-SS.csv`
@@ -102,33 +103,40 @@ python3 main.py
    - `4. Centro`
    - `5. Todas` (procesa todas las regiones)
 
-2. **Navegación automática**: La aplicación:
+2. **Configuración de búsqueda**: Se solicita ingresar una palabra clave para filtrar las búsquedas:
+   - Puedes ingresar cualquier palabra clave (ej: "alimentación", "equipamiento", "servicios", etc.)
+   - Si no se ingresa ninguna palabra clave, se usa "carne" por defecto
+
+3. **Navegación automática**: La aplicación:
    - Abre el navegador (visible por defecto)
    - Navega al perfil de contratante de la región seleccionada
    - Accede a la sección de Licitaciones
    - Rellena el formulario de búsqueda:
      - Tipo de contrato: Suministros
      - Estado: Resuelta
-     - Objeto: alimentación
+     - Objeto: [palabra clave ingresada]
    - Ejecuta la búsqueda
 
-3. **Extracción de datos**: Para cada licitación encontrada:
+4. **Extracción de datos**: Para cada licitación encontrada:
    - Abre la página de detalle en una nueva pestaña
    - Extrae los siguientes datos:
-     - Valor estimado del contrato
+     - Valor estimado del contrato (solo el valor numérico, sin "Euros")
      - Adjudicatario
      - Fecha de publicación
-     - Tipo de documento
+     - Hora de publicación (si está disponible)
    - Cierra la pestaña y continúa con la siguiente
+   - Muestra una barra de progreso en la consola sin interrupciones
 
-4. **Paginación**: Si hay más páginas de resultados, navega automáticamente a la siguiente
+5. **Paginación**: Si hay más páginas de resultados, navega automáticamente a la siguiente
 
-5. **Guardado de resultados**: Los datos se guardan en:
-   - `suministrations/[region]/export_YYYY-MM-DD_HH-MM-SS.csv`
-   - Ejemplo: `suministrations/sur/export_2026-01-15_16-11-30.csv`
+6. **Guardado de resultados**: Los datos se guardan en:
+   - `suministrations/[region]/[palabra_clave]/export_YYYY-MM-DD_HH-MM-SS.csv`
+   - Ejemplo: `suministrations/sur/alimentación/export_2026-01-15_16-11-30.csv`
 
-6. **Logging**: Todas las operaciones se registran en:
+7. **Logging**: Todas las operaciones se registran en:
    - `logs/log_YYYY-MM-DD_HH-MM-SS.txt`
+   - La consola muestra una salida limpia con barra de progreso
+   - Los detalles completos (incluyendo fechas extraídas) se guardan en los archivos de log
 
 ### Configuración del navegador
 
@@ -158,10 +166,15 @@ SAECO/
 ├── README.md              # Este archivo
 ├── suministrations/       # Carpeta de salida (se crea automáticamente)
 │   ├── sur/              # Archivos CSV de la región Sur
+│   │   └── [palabra_clave]/  # Subcarpetas organizadas por palabra clave
 │   ├── este/             # Archivos CSV de la región Este
+│   │   └── [palabra_clave]/  # Subcarpetas organizadas por palabra clave
 │   ├── oeste/            # Archivos CSV de la región Oeste
+│   │   └── [palabra_clave]/  # Subcarpetas organizadas por palabra clave
 │   ├── centro/           # Archivos CSV de la región Centro
+│   │   └── [palabra_clave]/  # Subcarpetas organizadas por palabra clave
 │   └── todas/            # Archivos CSV cuando se procesan todas las regiones
+│       └── [palabra_clave]/  # Subcarpetas organizadas por palabra clave
 └── logs/                  # Archivos de log (se crea automáticamente)
     └── log_*.txt         # Logs con timestamps
 ```
@@ -172,10 +185,10 @@ Los archivos CSV contienen las siguientes columnas:
 
 - `url`: URL completa de la licitación en contrataciondelestado.es
 - `region`: Región de la licitación (Sur, Este, Oeste, Centro)
-- `valor_estimado`: Valor estimado del contrato (ej: "145.899,91 Euros")
+- `valor_estimado`: Valor estimado del contrato (solo el valor numérico, sin "Euros", ej: "145.899,91")
 - `adjudicatario`: Empresa adjudicataria
 - `fecha_publicacion`: Fecha de publicación de la adjudicación
-- `tipo_documento`: Tipo de documento (normalmente "Adjudicación")
+- `hora_publicacion`: Hora de publicación de la adjudicación (si está disponible)
 
 Los archivos se guardan con codificación UTF-8 con BOM para compatibilidad con Excel.
 
@@ -195,20 +208,21 @@ La aplicación está organizada en módulos especializados:
 
 1. **Inicialización**: Se configura el logging y se inicia el navegador Chromium
 2. **Selección**: El usuario selecciona la región a procesar
-3. **Navegación**: Se navega a la URL del perfil de contratante de la región
-4. **Acceso a Licitaciones**: Se hace click en la pestaña "Licitaciones"
-5. **Búsqueda**: Se rellenan los filtros y se ejecuta la búsqueda:
+3. **Palabra clave**: El usuario ingresa una palabra clave para filtrar las búsquedas
+4. **Navegación**: Se navega a la URL del perfil de contratante de la región
+5. **Acceso a Licitaciones**: Se hace click en la pestaña "Licitaciones"
+6. **Búsqueda**: Se rellenan los filtros y se ejecuta la búsqueda:
    - Tipo de contrato: "1" (Suministros)
    - Estado: "RES" (Resuelta)
-   - Objeto: "alimentación"
-6. **Extracción**: Para cada resultado:
+   - Objeto: [palabra clave ingresada por el usuario]
+7. **Extracción**: Para cada resultado:
    - Se obtiene el enlace a la página de detalle
    - Se abre en una nueva pestaña
    - Se extraen los datos usando selectores XPath específicos
    - Se cierra la pestaña
-7. **Paginación**: Si existe botón "Siguiente", se navega a la siguiente página
-8. **Guardado**: Se guardan todos los datos en un archivo CSV con timestamp
-9. **Finalización**: Se cierra el navegador y se restauran los logs
+8. **Paginación**: Si existe botón "Siguiente", se navega a la siguiente página
+9. **Guardado**: Se guardan todos los datos en un archivo CSV con timestamp, organizado por región y palabra clave
+10. **Finalización**: Se cierra el navegador y se restauran los logs
 
 ### Selectores Utilizados
 
@@ -226,13 +240,15 @@ La aplicación utiliza selectores XPath para encontrar elementos:
 
 ## ⚠️ Notas Importantes
 
-- La aplicación está diseñada específicamente para extraer información de suministraciones alimentarias de los perfiles de contratante del Ejército de Tierra
+- La aplicación está diseñada para extraer información de licitaciones de suministros desde los perfiles de contratante del Ejército de Tierra usando cualquier palabra clave personalizable
 - La aplicación espera automáticamente a que los elementos sean visibles antes de interactuar
 - Si un elemento no se encuentra, la aplicación mostrará un error pero continuará
 - Los archivos CSV se guardan con codificación UTF-8 con BOM para compatibilidad con Excel
 - Cada ejecución genera un nuevo archivo con timestamp, no sobrescribe archivos anteriores
 - El proceso puede tardar varios minutos dependiendo del número de licitaciones encontradas
 - Si la estructura de la página web cambia, los selectores pueden necesitar actualizarse
+- El valor estimado se guarda sin la palabra "Euros" para facilitar el procesamiento posterior
+- La consola muestra una salida limpia con barra de progreso; los detalles completos están en los archivos de log
 
 ## 🐛 Solución de Problemas
 
@@ -264,8 +280,9 @@ playwright install chromium
 - Los selectores pueden necesitar actualizarse si la página web ha cambiado
 
 ### No se encuentran licitaciones
-- Verifica que existan licitaciones de suministros de alimentación resueltas en la región seleccionada
+- Verifica que existan licitaciones de suministros resueltas en la región seleccionada que coincidan con la palabra clave ingresada
 - Comprueba que los filtros de búsqueda sean correctos
+- Intenta con diferentes palabras clave si no se encuentran resultados
 
 ## 📝 Dependencias
 
