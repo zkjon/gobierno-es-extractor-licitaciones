@@ -33,7 +33,6 @@ def main():
         start_time = datetime.now()
         
         print_header("EXTRACTOR DE LICITACIONES - CONTRATACIÓN DEL ESTADO")
-        print_info(f"Inicio: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
         print_info(f"Log guardado en: {log_filename}\n")
         
         # PASO 0: Seleccionar región y URL al inicio
@@ -107,7 +106,6 @@ def main():
         end_time = datetime.now()
         elapsed_time = (end_time - start_time).total_seconds()
         elapsed_formatted = format_elapsed_time(elapsed_time)
-        print_info(f"Fin: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
         print_info(f"Tiempo total transcurrido: {elapsed_formatted}")
         
     except KeyboardInterrupt:

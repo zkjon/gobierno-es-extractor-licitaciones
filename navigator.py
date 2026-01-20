@@ -454,6 +454,32 @@ class ContratacionNavigator:
             print_error(f"Error obteniendo enlaces: {str(e)}")
             return links
     
+    def _separar_fecha_hora(self, texto_completo: str):
+        """
+        Separa fecha y hora de un texto que puede contener ambos.
+        
+        Args:
+            texto_completo: Texto que puede contener fecha y hora (ej: "04/06/2024 12:05:21")
+        
+        Returns:
+            Tupla (fecha, hora) donde fecha y hora son strings separados
+        """
+        if not texto_completo:
+            return ("", "")
+        
+        texto = texto_completo.strip()
+        
+        # Buscar separación por espacio (formato común: "DD/MM/YYYY HH:MM:SS")
+        partes = texto.split(" ", 1)
+        
+        if len(partes) == 2:
+            fecha = partes[0].strip()
+            hora = partes[1].strip()
+            return (fecha, hora)
+        else:
+            # Si no hay espacio, asumir que es solo fecha
+            return (texto, "")
+    
     def extract_detail_data(self):
         """
         Extrae los datos específicos de la página de detalle de una licitación.
@@ -465,7 +491,7 @@ class ContratacionNavigator:
             "valor_estimado": "",
             "adjudicatario": "",
             "fecha_publicacion": "",
-            "tipo_documento": ""
+            "hora_publicacion": ""
         }
         
         try:
@@ -477,14 +503,6 @@ class ContratacionNavigator:
                 valor_element = self.page.locator("//span[contains(@id, 'text_ValorContrato')]").first
                 if valor_element.is_visible(timeout=2000):
                     valor_text = valor_element.inner_text(timeout=1000).strip()
-                    # Buscar "Euros" cerca
-                    try:
-                        parent = valor_element.locator("..")
-                        euros = parent.locator("//span[contains(text(), 'Euros')]").first
-                        if euros.is_visible(timeout=500):
-                            valor_text += " " + euros.inner_text(timeout=500).strip()
-                    except:
-                        pass
                     data["valor_estimado"] = valor_text
             except:
                 pass
@@ -497,24 +515,112 @@ class ContratacionNavigator:
             except:
                 pass
             
-            # Extraer Fecha y Tipo de documento de "Adjudicación"
+            # Extraer Fecha de "Adjudicación" - Múltiples estrategias
+            fecha_encontrada = False
+            
+            # Estrategia 1: Buscar en tabla myTablaDetalleVISUOE por fila con "Adjudicación"
             try:
                 tabla_rows = self.page.locator("//table[@id='myTablaDetalleVISUOE']//tbody//tr").all()
-                for row in tabla_rows:
-                    try:
-                        tipo_doc = row.locator("td[2]").first
-                        if tipo_doc.is_visible(timeout=500):
-                            tipo_text = tipo_doc.inner_text(timeout=500).strip()
-                            if "Adjudicación" in tipo_text:
+                if tabla_rows:
+                    for row in tabla_rows:
+                        try:
+                            # Intentar obtener todas las celdas
+                            celdas = row.locator("td").all()
+                            if len(celdas) >= 2:
+                                # Buscar "Adjudicación" en cualquier celda
+                                for idx, celda in enumerate(celdas):
+                                    try:
+                                        texto_celda = celda.inner_text(timeout=500).strip()
+                                        if "Adjudicación" in texto_celda or "adjudicación" in texto_celda.lower():
+                                            # La fecha debería estar en la primera celda (td[1]) o en la anterior
+                                            if idx == 0:
+                                                # Si está en la primera, buscar en otra parte
+                                                continue
+                                            fecha_cell = celdas[0] if idx > 0 else row.locator("td[1]").first
+                                            if fecha_cell.is_visible(timeout=500):
+                                                fecha_extraida = fecha_cell.inner_text(timeout=500).strip()
+                                                if fecha_extraida and len(fecha_extraida) > 0:
+                                                    fecha, hora = self._separar_fecha_hora(fecha_extraida)
+                                                    data["fecha_publicacion"] = fecha
+                                                    data["hora_publicacion"] = hora
+                                                    fecha_encontrada = True
+                                                    break
+                                    except:
+                                        continue
+                                if fecha_encontrada:
+                                    break
+                        except:
+                            continue
+            except Exception as e:
+                print_warning(f"Error en estrategia 1 de fecha: {str(e)[:50]}")
+            
+            # Estrategia 2: Buscar directamente la primera celda de cada fila que contenga una fecha
+            if not fecha_encontrada:
+                try:
+                    tabla_rows = self.page.locator("//table[@id='myTablaDetalleVISUOE']//tbody//tr").all()
+                    for row in tabla_rows:
+                        try:
+                            # Buscar fila que tenga "Adjudicación" en cualquier parte
+                            row_text = row.inner_text(timeout=500).strip()
+                            if "Adjudicación" in row_text or "adjudicación" in row_text.lower():
                                 fecha_cell = row.locator("td[1]").first
                                 if fecha_cell.is_visible(timeout=500):
-                                    data["fecha_publicacion"] = fecha_cell.inner_text(timeout=500).strip()
-                                data["tipo_documento"] = tipo_text
+                                    fecha_extraida = fecha_cell.inner_text(timeout=500).strip()
+                                    # Verificar que parece una fecha (contiene números y / o -)
+                                    if fecha_extraida and ("/" in fecha_extraida or "-" in fecha_extraida or any(c.isdigit() for c in fecha_extraida)):
+                                        fecha, hora = self._separar_fecha_hora(fecha_extraida)
+                                        data["fecha_publicacion"] = fecha
+                                        data["hora_publicacion"] = hora
+                                        fecha_encontrada = True
+                                        break
+                        except:
+                            continue
+                except Exception as e:
+                    print_warning(f"Error en estrategia 2 de fecha: {str(e)[:50]}")
+            
+            # Estrategia 3: Buscar cualquier tabla que contenga fechas cerca de "Adjudicación"
+            if not fecha_encontrada:
+                try:
+                    # Buscar todas las tablas que puedan contener la información
+                    todas_las_tablas = self.page.locator("//table[contains(@id, 'Tabla') or contains(@id, 'tabla')]").all()
+                    for tabla in todas_las_tablas:
+                        try:
+                            # Buscar filas dentro de esta tabla específica
+                            filas = tabla.locator(".//tbody//tr | .//tr").all()
+                            for fila in filas:
+                                try:
+                                    texto_fila = fila.inner_text(timeout=500).strip()
+                                    if "Adjudicación" in texto_fila or "adjudicación" in texto_fila.lower():
+                                        # Buscar fecha en la primera celda o en cualquier celda que parezca fecha
+                                        celdas = fila.locator(".//td").all()
+                                        for celda in celdas:
+                                            try:
+                                                texto = celda.inner_text(timeout=500).strip()
+                                                # Verificar si parece una fecha (formato DD/MM/YYYY o similar)
+                                                if texto and ("/" in texto or "-" in texto) and any(c.isdigit() for c in texto):
+                                                    # Verificar que tenga formato de fecha razonable
+                                                    partes = texto.replace("-", "/").split("/")
+                                                    if len(partes) >= 2:
+                                                        fecha, hora = self._separar_fecha_hora(texto)
+                                                        data["fecha_publicacion"] = fecha
+                                                        data["hora_publicacion"] = hora
+                                                        fecha_encontrada = True
+                                                        break
+                                            except:
+                                                continue
+                                        if fecha_encontrada:
+                                            break
+                                except:
+                                    continue
+                            if fecha_encontrada:
                                 break
-                    except:
-                        continue
-            except:
-                pass
+                        except:
+                            continue
+                except Exception as e:
+                    print_warning(f"Error en estrategia 3 de fecha: {str(e)[:50]}")
+            
+            if not fecha_encontrada:
+                print_warning("No se pudo extraer la fecha de publicación")
             
             return data
             
@@ -542,7 +648,7 @@ class ContratacionNavigator:
                 os.makedirs(directory)
             
             # Determinar las columnas según si hay datos de región o no
-            fieldnames = ["url", "valor_estimado", "adjudicatario", "fecha_publicacion", "tipo_documento"]
+            fieldnames = ["url", "valor_estimado", "adjudicatario", "fecha_publicacion", "hora_publicacion"]
             if any("region" in data for data in data_list):
                 fieldnames.insert(1, "region")
             
