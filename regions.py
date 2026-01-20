@@ -53,7 +53,7 @@ def select_region_url():
             'url': 'TODAS'  # Indicador especial
         }
     }
-    
+
     print_header("SELECCIÓN DE REGIÓN")
     print("\nOpciones disponibles:")
     for key, value in urls_regiones.items():

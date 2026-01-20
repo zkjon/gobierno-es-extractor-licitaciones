@@ -37,7 +37,7 @@ class ContratacionNavigator:
         self.page = None
         self.base_url = None  # Se establecerá según la selección del usuario
         self.extracted_data = {}
-    
+
     def start(self):
         """Inicia el navegador y la página."""
         print_info("Iniciando navegador...")
@@ -80,12 +80,13 @@ class ContratacionNavigator:
 
         Args:
             selector: Selector CSS, XPath o texto del elemento
-            description: Descripción del elemento para logging
+            description: Descripción del elemento para logging (no utilizado)
             timeout: Tiempo máximo de espera en milisegundos
 
         Returns:
             True si el click fue exitoso, False en caso contrario
         """
+        # pylint: disable=unused-argument
         try:
             # Intentar diferentes métodos de selección
             if selector.startswith("//") or selector.startswith("(//"):
@@ -94,12 +95,12 @@ class ContratacionNavigator:
                 element = self.page.locator(selector).first
             else:
                 element = self.page.locator(selector).first
-            
+
             # Esperar a que el elemento sea visible y clickeable
             element.wait_for(state="visible", timeout=timeout)
             element.scroll_into_view_if_needed()
             element.click(timeout=timeout)
-            
+
             time.sleep(0.5)  # Pausa reducida
             return True
 
@@ -157,7 +158,7 @@ class ContratacionNavigator:
                 element = self.page.locator(selector).first
             else:
                 element = self.page.locator(selector).first
-            
+
             element.wait_for(state="visible", timeout=timeout)
             print("✅ Elemento encontrado")
             return True
@@ -185,12 +186,12 @@ class ContratacionNavigator:
                 element = self.page.locator(selector).first
             else:
                 element = self.page.locator(selector).first
-            
+
             element.wait_for(state="visible", timeout=timeout)
             element.scroll_into_view_if_needed()
             element.clear()
             element.fill(value)
-            
+
             time.sleep(0.2)
             return True
 
@@ -208,21 +209,22 @@ class ContratacionNavigator:
         Args:
             selector: Selector del elemento select
             value: Valor u opción a seleccionar (puede ser texto visible o value)
-            description: Descripción del campo para logging
+            description: Descripción del campo para logging (no utilizado)
             timeout: Tiempo máximo de espera en milisegundos
 
         Returns:
             True si se seleccionó correctamente, False en caso contrario
         """
+        # pylint: disable=unused-argument
         try:
             if selector.startswith("//") or selector.startswith("(//"):
                 element = self.page.locator(selector).first
             else:
                 element = self.page.locator(selector).first
-            
+
             element.wait_for(state="visible", timeout=timeout)
             element.scroll_into_view_if_needed()
-            
+
             # Intentar múltiples estrategias de selección
             # Estrategia 1: Por value (más rápido y confiable)
             try:
@@ -409,14 +411,14 @@ class ContratacionNavigator:
         """
         try:
             print(f"📝 Extrayendo texto de: {description or selector}")
-            
+
             if selector.startswith("//") or selector.startswith("(//"):
                 element = self.page.locator(selector).first
             else:
                 element = self.page.locator(selector).first
-            
+
             text = element.inner_text(timeout=5000).strip()
-            
+
             if save_key:
                 self.extracted_data[save_key] = text
                 print(
@@ -443,9 +445,9 @@ class ContratacionNavigator:
     def save_data(self, filename: str = "extracted_data.json"):
         """Guarda los datos extraídos en un archivo JSON."""
         try:
-            with open(filename, 'w', encoding='utf-8') as f:
+            with open(filename, 'w', encoding='utf-8') as file_obj:
                 json.dump(
-                    self.extracted_data, f, ensure_ascii=False, indent=2
+                    self.extracted_data, file_obj, ensure_ascii=False, indent=2
                 )
             print(f"💾 Datos guardados en: {filename}")
         except Exception as e:
@@ -505,7 +507,7 @@ class ContratacionNavigator:
         except Exception as e:
             print_error(f"Error obteniendo enlaces: {str(e)}")
             return links
-    
+
     def _separar_fecha_hora(self, texto_completo: str):
         """
         Separa fecha y hora de un texto que puede contener ambos.
@@ -518,7 +520,7 @@ class ContratacionNavigator:
         """
         if not texto_completo:
             return ("", "")
-        
+
         texto = texto_completo.strip()
 
         # Buscar separación por espacio (formato común: "DD/MM/YYYY HH:MM:SS")
@@ -571,7 +573,7 @@ class ContratacionNavigator:
                     ).strip()
             except Exception:
                 pass
-            
+
             # Extraer Fecha de "Adjudicación" - Múltiples estrategias
             fecha_encontrada = False
             
@@ -622,7 +624,7 @@ class ContratacionNavigator:
                 print_warning(
                     f"Error en estrategia 1 de fecha: {str(e)[:50]}"
                 )
-            
+
             # Estrategia 2: Buscar directamente la primera celda de cada fila
             if not fecha_encontrada:
                 try:
@@ -715,7 +717,7 @@ class ContratacionNavigator:
                     print_warning(
                         f"Error en estrategia 3 de fecha: {str(e)[:50]}"
                     )
-            
+
             if not fecha_encontrada:
                 print_warning("No se pudo extraer la fecha de publicación")
 
@@ -738,12 +740,12 @@ class ContratacionNavigator:
             if not data_list:
                 print_warning("No hay datos para guardar")
                 return
-            
+
             # Crear directorio si no existe (por si filename incluye una ruta)
             directory = os.path.dirname(filename)
             if directory and not os.path.exists(directory):
                 os.makedirs(directory)
-            
+
             # Determinar las columnas según si hay datos de región o no
             fieldnames = [
                 "url", "valor_estimado", "adjudicatario",
@@ -752,9 +754,9 @@ class ContratacionNavigator:
             if any("region" in data for data in data_list):
                 fieldnames.insert(1, "region")
 
-            with open(filename, 'w', newline='', encoding='utf-8-sig') as f:
+            with open(filename, 'w', newline='', encoding='utf-8-sig') as file_obj:
                 writer = csv.DictWriter(
-                    f, fieldnames=fieldnames, delimiter=';'
+                    file_obj, fieldnames=fieldnames, delimiter=';'
                 )
                 writer.writeheader()
                 writer.writerows(data_list)

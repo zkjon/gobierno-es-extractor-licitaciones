@@ -18,14 +18,14 @@ class Tee:
 
     def write(self, obj):
         """Escribe el objeto en todos los archivos."""
-        for f in self.files:
-            f.write(obj)
-            f.flush()
+        for file_obj in self.files:
+            file_obj.write(obj)
+            file_obj.flush()
 
     def flush(self):
         """Fuerza el vaciado de todos los archivos."""
-        for f in self.files:
-            f.flush()
+        for file_obj in self.files:
+            file_obj.flush()
 
 
 def setup_logging():
@@ -45,6 +45,8 @@ def setup_logging():
     log_filename = os.path.join(logs_dir, f"log_{timestamp}.log")
 
     # Abrir archivo de log
+    # pylint: disable=consider-using-with
+    # Necesitamos devolver el archivo abierto para cerrarlo más tarde
     log_file = open(log_filename, 'w', encoding='utf-8')
 
     # Guardar stdout original

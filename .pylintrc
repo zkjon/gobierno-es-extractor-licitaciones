@@ -24,7 +24,7 @@ py-version=3.8
 
 # When enabled, pylint would attempt to guess common misconfiguration and emit
 # user-friendly hints instead of false-positive error messages.
-suggestion-mode=yes
+# suggestion-mode=yes  # Not available in older pylint versions
 
 # Allow loading of arbitrary C extensions. Extensions are imported into the
 # active Python interpreter and may run arbitrary code.
@@ -197,7 +197,9 @@ good-names=i,
            _,
            id,
            db,
-           idx
+           idx,
+           e,
+           f
 
 # Include a hint for the correct naming format with invalid-name.
 include-naming-hint=no
@@ -337,7 +339,7 @@ generated-members=
 
 # Tells whether missing members accessed in a class will be ignored when a class
 # has __getattr__ or __getattribute__ methods defined.
-ignore-missing-attributes=no
+# ignore-missing-attributes=no  # Not available in older pylint versions
 
 # Tells whether to warn about missing members when the owner of the attribute is
 # inferred to be None.
@@ -398,7 +400,7 @@ dummy-variables-rgx=_+$|(_[a-zA-Z0-9_]*[a-zA-Z0-9]+?$)|dummy|^ignored_|^unused_
 
 # Argument names that match this expression will be ignored. Default to name
 # with leading underscore.
-ignored-argument-names-rgx=^_.*|^unused_.*|^ignored_.*|^description$
+# ignored-argument-names-rgx=^_.*|^unused_.*|^ignored_.*|^description$  # Not available in older pylint versions
 
 # Tells whether unused variables in functions should be treated as a violation.
-unused-variable=yes
+# unused-variable=yes  # Not available in older pylint versions
