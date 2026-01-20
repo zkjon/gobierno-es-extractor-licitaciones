@@ -39,10 +39,10 @@ def print_info(message: str):
 def format_elapsed_time(seconds: float) -> str:
     """
     Formatea el tiempo transcurrido en horas, minutos y segundos.
-    
+
     Args:
         seconds: Tiempo en segundos (puede ser float)
-    
+
     Returns:
         String formateado como "Xh Xm Xs" o "Xm Xs" o "Xs"
     """
@@ -50,7 +50,7 @@ def format_elapsed_time(seconds: float) -> str:
     hours = total_seconds // 3600
     minutes = (total_seconds % 3600) // 60
     secs = total_seconds % 60
-    
+
     parts = []
     if hours > 0:
         parts.append(f"{hours}h")
@@ -58,7 +58,7 @@ def format_elapsed_time(seconds: float) -> str:
         parts.append(f"{minutes}m")
     if secs > 0 or not parts:
         parts.append(f"{secs}s")
-    
+
     return " ".join(parts)
 
 
@@ -67,7 +67,11 @@ def print_progress(current: int, total: int, item: str = ""):
     percentage = int((current / total) * 100) if total > 0 else 0
     bar_length = 40
     filled = int(bar_length * current / total) if total > 0 else 0
-    bar = "█" * filled + "░" * (bar_length - filled)
-    print(f"\r  [{bar}] {percentage:3d}% ({current}/{total}) {item}", end="", flush=True)
+    progress_bar = "█" * filled + "░" * (bar_length - filled)
+    print(
+        f"\r  [{progress_bar}] {percentage:3d}% ({current}/{total}) {item}",
+        end="",
+        flush=True
+    )
     if current == total:
         print()  # Nueva línea al completar
