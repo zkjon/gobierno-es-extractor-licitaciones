@@ -175,12 +175,13 @@ class ContratacionNavigator:
         Args:
             selector: Selector del campo
             value: Valor a introducir
-            description: Descripción del campo para logging
+            description: Descripción del campo para logging (no utilizado)
             timeout: Tiempo máximo de espera en milisegundos
 
         Returns:
             True si se rellenó correctamente, False en caso contrario
         """
+        # pylint: disable=unused-argument
         try:
             if selector.startswith("//") or selector.startswith("(//"):
                 element = self.page.locator(selector).first
@@ -282,7 +283,7 @@ class ContratacionNavigator:
             return False
         except Exception:
             return False
-    
+
     def debug_list_form_elements(self):
         """Lista todos los elementos de formulario disponibles para debug."""
         print("\n🔍 Listando elementos del formulario disponibles...")
@@ -576,7 +577,7 @@ class ContratacionNavigator:
 
             # Extraer Fecha de "Adjudicación" - Múltiples estrategias
             fecha_encontrada = False
-            
+
             # Estrategia 1: Buscar en tabla myTablaDetalleVISUOE por fila con "Adjudicación"
             try:
                 tabla_rows = self.page.locator(
@@ -660,7 +661,7 @@ class ContratacionNavigator:
                     print_warning(
                         f"Error en estrategia 2 de fecha: {str(e)[:50]}"
                     )
-            
+
             # Estrategia 3: Buscar cualquier tabla que contenga fechas cerca de "Adjudicación"
             if not fecha_encontrada:
                 try:
